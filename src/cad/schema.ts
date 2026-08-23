@@ -98,6 +98,112 @@ export const PRIVILEGED_TOOL_NAMES = [
 
 const FACE_ENUM = ["top_face", "bottom_face", "front_face", "back_face", "right_face", "left_face"];
 
+const assemblyRefFace = {
+  anyOf: [{ type: "string", description: "Face name (top_face, ...) or semantic selector string." }, geometrySelector],
+  description: "Component-local face reference. Resolved per instance — never a raw topology index.",
+};
+
+const assemblyRefAxis = {
+  anyOf: [
+    { type: "string", enum: ["X", "Y", "Z"], description: "Named coordinate axis." },
+    { type: "string", description: "Cylinder/hole feature name or id whose axis is used." },
+    geometrySelector,
+  ],
+  description: "Component-local axis reference.",
+};
+
+function assemblyEntry(
+  name: string,
+  description: string,
+  properties: Record<string, unknown>,
+  required: string[],
+  kind: ToolKind = "mutate",
+): CatalogEntry {
+  return entry({
+    name,
+    description,
+    properties: props(properties),
+    required,
+    kind,
+    permission: kind === "read" ? "cad:read" : "cad:write",
+    needsProject: true,
+    mapsTo: name,
+    exposeToGrok: true,
+    destructive: false,
+    idempotent: kind === "read",
+  });
+}
+
+const ASSEMBLY_TOOLS: CatalogEntry[] = [
+  assemblyEntry("create_assembly", "Create an assembly container. Returns a stable assembly_id.", { name: { type: "string" }, assembly_id: { type: "string" } }, []),
+  assemblyEntry(
+    "define_component",
+    "Define a reusable component from this document's current content (snapshot of bodies/features/parameters), or from an imported STEP/FCStd file. Definitions are shared by all instances; instances never copy design trees.",
+    {
+      assembly_id: { type: "string" },
+      component_id: { type: "string" },
+      name: { type: "string" },
+      include: { type: "object", properties: { body_ids: { type: "array", items: { type: "string" } } } },
+      source_format: { type: "string", enum: ["step", "fcstd"] },
+      source_path: { type: "string" },
+    },
+    ["assembly_id"],
+  ),
+  assemblyEntry(
+    "create_instance",
+    "Place one component definition into the assembly with a stable instance id and optional initial transform (mm; Euler XYZ degrees).",
+    {
+      assembly_id: { type: "string" },
+      component_id: { type: "string" },
+      instance_id: { type: "string" },
+      position: origin,
+      rotation_euler_xyz_deg: { type: "object", properties: { x: dim, y: dim, z: dim } },
+    },
+    ["assembly_id", "component_id"],
+  ),
+  assemblyEntry("fix_instance", "Ground an instance. Fixed instances define the assembly reference frame and never move during constraint solving.", { assembly_id: { type: "string" }, instance_id: { type: "string" } }, ["assembly_id", "instance_id"]),
+  assemblyEntry("set_instance_transform", "Set an unconstrained instance's initial/current placement (position mm; rotation Euler XYZ degrees).", { assembly_id: { type: "string" }, instance_id: { type: "string" }, position: origin, rotation_euler_xyz_deg: { type: "object", properties: { x: dim, y: dim, z: dim } } }, ["assembly_id", "instance_id"]),
+  assemblyEntry("set_definition_parameter", "Change a native component definition parameter. All instances of the definition update on the next rebuild — real instancing, not copied geometry.", { assembly_id: { type: "string" }, component_id: { type: "string" }, name: { type: "string" }, value: { type: "number" } }, ["assembly_id", "component_id", "name", "value"]),
+  assemblyEntry("mate_faces", "Planar face-to-face mate between two instances. The second referenced instance moves. Optional offset_mm gap along the anchor normal.", { assembly_id: { type: "string" }, a_instance: { type: "string" }, a_face: assemblyRefFace, b_instance: { type: "string" }, b_face: assemblyRefFace, offset_mm: { type: "number" } }, ["assembly_id", "a_instance", "a_face", "b_instance", "b_face"]),
+  assemblyEntry("align_axes", "Align two cylindrical/coordinate axes. concentric=true also slides the moving instance along the axis so axis points coincide.", { assembly_id: { type: "string" }, a_instance: { type: "string" }, a_axis: assemblyRefAxis, b_instance: { type: "string" }, b_axis: assemblyRefAxis, concentric: { type: "boolean" } }, ["assembly_id", "a_instance", "a_axis", "b_instance", "b_axis"]),
+  assemblyEntry("set_distance", "Signed distance between two parallel planar references, measured along the anchor normal.", { assembly_id: { type: "string" }, a_instance: { type: "string" }, a_ref: assemblyRefFace, b_instance: { type: "string" }, b_ref: assemblyRefFace, distance_mm: { type: "number" } }, ["assembly_id", "a_instance", "a_ref", "b_instance", "b_ref", "distance_mm"]),
+  assemblyEntry("set_angle", "Dihedral angle between two planar references, in explicit degrees.", { assembly_id: { type: "string" }, a_instance: { type: "string" }, a_ref: assemblyRefFace, b_instance: { type: "string" }, b_ref: assemblyRefFace, angle_deg: { type: "number" } }, ["assembly_id", "a_instance", "a_ref", "b_instance", "b_ref", "angle_deg"]),
+  assemblyEntry("remove_constraint", "Remove one assembly constraint by id (see inspect_assembly).", { assembly_id: { type: "string" }, constraint_id: { type: "string" } }, ["assembly_id", "constraint_id"]),
+  entry({
+    name: "rebuild_assembly",
+    description: "Authoritatively build an assembly through FreeCAD/OpenCascade. Returns per-instance validity, volumes and world bounds.",
+    properties: props({ assembly_id: { type: "string" } }),
+    required: ["assembly_id"],
+    kind: "artifact",
+    permission: "cad:export",
+    needsProject: true,
+    mapsTo: "rebuild_assembly",
+    exposeToGrok: true,
+    destructive: false,
+    idempotent: true,
+  }),
+  entry({
+    name: "export_assembly",
+    description: "Export a solved assembly as FCStd (native App::Part hierarchy) or STEP (placed solids with instance labels).",
+    properties: props({ assembly_id: { type: "string" }, format: { type: "string", enum: ["fcstd", "step"] } }),
+    required: ["assembly_id"],
+    kind: "artifact",
+    permission: "cad:export",
+    needsProject: true,
+    mapsTo: "export_assembly",
+    exposeToGrok: true,
+    destructive: false,
+    idempotent: true,
+  }),
+  assemblyEntry(
+    "inspect_assembly",
+    "Inspect an assembly: definitions, instances with world transforms, constraint status (applied/redundant/deferred), remaining degrees of freedom, world bounding box. Deterministic solve runs kernel-free.",
+    { assembly_id: { type: "string" } },
+    ["assembly_id"],
+    "read",
+  ),
+];
+
 export const TOOL_CATALOG: CatalogEntry[] = [
   entry({
     name: "kernel_status",
@@ -826,6 +932,10 @@ export const TOOL_CATALOG: CatalogEntry[] = [
     description:
       "Render deterministic orthographic/isometric PNG previews of the current solids. Returns artifact_id handles (and MCP also embeds the PNG). Views: isometric, front, top, right, thumbnail, all.",
     properties: props({
+      assembly_id: {
+        type: "string",
+        description: "Render an assembly (instances at solved transforms) instead of the single-part document.",
+      },
       view: {
         type: "string",
         description: "isometric | front | top | right | thumbnail | all. Default isometric.",
@@ -1062,6 +1172,7 @@ export const TOOL_CATALOG: CatalogEntry[] = [
     destructive: false,
     idempotent: false,
   }),
+  ...ASSEMBLY_TOOLS,
 ];
 
 const BY_NAME = new Map(TOOL_CATALOG.map((t) => [t.name, t]));

@@ -49,7 +49,7 @@ Design rules:
 - import_step / import_fcstd bring in B-rep (or mesh). They are not parametric; say so when reporting.
 - query_geometry on imported solids is allowed (largest planar face, vertical edges). Do not invent sketches for imported geometry.
 - Never request eval_python, shell, or arbitrary FreeCAD code. Those tools are not available.
-- Call inspect_backend_capabilities when unsure whether a feature exists. Circular patterns, assemblies, and helical threads are not implemented (BACKEND_UNSUPPORTED).
+- Call inspect_backend_capabilities when unsure whether a feature exists. Circular patterns and helical threads are not implemented (BACKEND_UNSUPPORTED). A bounded assembly subset exists: create_assembly / define_component / create_instance / fix_instance / mate_faces / align_axes / set_distance / set_angle / inspect_assembly — mechanical intent only, one serialized solve.
 - create_hole is design intent. Do not send PartDesign::Hole or any FreeCAD type name.
 
 Manufacturing defaults if unspecified: 2.4 mm walls, M3 holes (Ø 3.2 mm), 0.4 mm print-friendly fillets.`;

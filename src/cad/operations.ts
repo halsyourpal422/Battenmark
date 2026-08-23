@@ -33,6 +33,20 @@ import { evaluateDocument } from "./evaluate";
 import { meshesToObj, meshesToStl } from "./export-mesh";
 import { inspectDependencies, previewParameterChange } from "./deps";
 import { normalizeSelector, queryEnvelopeGeometry } from "./selectors";
+import {
+  alignAxes as asmAlignAxes,
+  createAssembly as asmCreate,
+  createInstance as asmCreateInstance,
+  defineComponent as asmDefineComponent,
+  fixInstance as asmFixInstance,
+  inspectAssembly as asmInspect,
+  mateFaces as asmMateFaces,
+  removeConstraint as asmRemoveConstraint,
+  setAngle as asmSetAngle,
+  setDefinitionParameter as asmSetDefParam,
+  setDistance as asmSetDistance,
+  setInstanceTransform as asmSetInstanceTransform,
+} from "./assembly/mutations";
 
 function vec(partial?: Partial<Vec3Expr>): Vec3Expr {
   return {
@@ -225,6 +239,7 @@ function isMutating(op: string) {
     "inspect_edges",
     "resolve_faces",
     "resolve_edges",
+    "inspect_assembly",
     "inspect_dependencies",
     "preview_parameter_change",
   ].includes(op);
@@ -823,6 +838,30 @@ function applyMutating(doc: CadDocument, op: Operation): ToolResult {
         `${op.op} is a service operation (preview/import). Call it through AgentCadService, MCP, CLI, or HTTP.`,
         { suggestion: "Use the Lab preview button, `agentcad preview`, or the render_preview tool on a project." },
       );
+    case "create_assembly":
+      return asmCreate(doc, op);
+    case "define_component":
+      return asmDefineComponent(doc, op);
+    case "create_instance":
+      return asmCreateInstance(doc, op);
+    case "fix_instance":
+      return asmFixInstance(doc, op);
+    case "set_instance_transform":
+      return asmSetInstanceTransform(doc, op);
+    case "set_definition_parameter":
+      return asmSetDefParam(doc, op);
+    case "mate_faces":
+      return asmMateFaces(doc, op);
+    case "align_axes":
+      return asmAlignAxes(doc, op);
+    case "set_distance":
+      return asmSetDistance(doc, op);
+    case "set_angle":
+      return asmSetAngle(doc, op);
+    case "remove_constraint":
+      return asmRemoveConstraint(doc, op);
+    case "inspect_assembly":
+      return asmInspect(doc, op);
     default:
       throw cadError("INVALID_REFERENCE", `Unknown operation.`);
   }
