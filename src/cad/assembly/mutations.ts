@@ -287,6 +287,8 @@ type MateOp = Extract<import("../types").Operation, { op: "mate_faces" }>;
 type AxisOp = Extract<import("../types").Operation, { op: "align_axes" }>;
 type DistOp = Extract<import("../types").Operation, { op: "set_distance" }>;
 type AngleOp = Extract<import("../types").Operation, { op: "set_angle" }>;
+type ParOp = Extract<import("../types").Operation, { op: "set_parallel" }>;
+type PerpOp = Extract<import("../types").Operation, { op: "set_perpendicular" }>;
 
 export function mateFaces(doc: CadDocument, op: MateOp): ToolResult {
   const asm = requireAsm(doc, op.assembly_id);
@@ -323,6 +325,24 @@ export function setAngle(doc: CadDocument, op: AngleOp): ToolResult {
   refs[1].face = op.b_ref;
   const c = pushConstraint(asm, { kind: "angle", refs, angleDeg: op.angle_deg });
   return { ok: true, operation: "set_angle", data: { assembly_id: asm.id, constraint_id: c.id, angle_deg: op.angle_deg } };
+}
+
+export function setParallel(doc: CadDocument, op: ParOp): ToolResult {
+  const asm = requireAsm(doc, op.assembly_id);
+  const refs = requireTwoRefs(asm, op.a_instance, op.b_instance);
+  refs[0].face = op.a_ref;
+  refs[1].face = op.b_ref;
+  const c = pushConstraint(asm, { kind: "parallel", refs });
+  return { ok: true, operation: "set_parallel", data: { assembly_id: asm.id, constraint_id: c.id } };
+}
+
+export function setPerpendicular(doc: CadDocument, op: PerpOp): ToolResult {
+  const asm = requireAsm(doc, op.assembly_id);
+  const refs = requireTwoRefs(asm, op.a_instance, op.b_instance);
+  refs[0].face = op.a_ref;
+  refs[1].face = op.b_ref;
+  const c = pushConstraint(asm, { kind: "perpendicular", refs });
+  return { ok: true, operation: "set_perpendicular", data: { assembly_id: asm.id, constraint_id: c.id } };
 }
 
 export function removeConstraint(

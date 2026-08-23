@@ -416,6 +416,86 @@ function main() {
     expectOpError(doc, { op: "inspect_assembly", assembly_id: "rk2" } as Operation, "CONSTRAINT_CONFLICT");
   });
 
+  // ================= Phase 6.1: hardening + DOF =================
+  run("P61-par", "parallel: orientation only", () => {
+    let doc = emptyDocument("p61par");
+    doc = apply(doc, [
+      { op: "create_box", name: "A", length_mm: 60, width_mm: 40, height_mm: 10 },
+      { op: "create_body", name: "BB" },
+      { op: "create_box", body_id: "BB", name: "B", length_mm: 30, width_mm: 30, height_mm: 12 },
+      { op: "create_assembly", name: "par" },
+      { op: "define_component", assembly_id: "par", component_id: "a", include: { body_ids: ["Body"] } },
+      { op: "define_component", assembly_id: "par", component_id: "b", include: { body_ids: ["BB"] } },
+      { op: "create_instance", assembly_id: "par", component_id: "a", instance_id: "a1" },
+      { op: "fix_instance", assembly_id: "par", instance_id: "a1" },
+      { op: "create_instance", assembly_id: "par", component_id: "b", instance_id: "b1", position: { x: 200 }, rotation_euler_xyz_deg: { x: 33, y: 21, z: 12 } },
+      { op: "set_parallel", assembly_id: "par", a_instance: "a1", a_ref: "top_face", b_instance: "b1", b_ref: "top_face" },
+    ]);
+    const d = inspectData(doc, "par") as any;
+    assert(d.solved, "unsolved");
+    const t = d.instances.find((i: any) => i.id === "b1").transform.translation;
+    assert(Math.abs(t.x - 200) < 1e-6 && Math.abs(t.y) < 1e-6, `translation must be preserved: ${t.x},${t.y},${t.z}`);
+    return `t=(${t.x},${t.y},${t.z}) translation preserved`;
+  });
+
+  run("P61-perp", "perpendicular minimal rotation", () => {
+    let doc = emptyDocument("p61perp");
+    doc = apply(doc, [
+      { op: "create_box", name: "A", length_mm: 60, width_mm: 40, height_mm: 10 },
+      { op: "create_body", name: "BB" },
+      { op: "create_box", body_id: "BB", name: "B", length_mm: 30, width_mm: 30, height_mm: 12 },
+      { op: "create_assembly", name: "pp" },
+      { op: "define_component", assembly_id: "pp", component_id: "a", include: { body_ids: ["Body"] } },
+      { op: "define_component", assembly_id: "pp", component_id: "b", include: { body_ids: ["BB"] } },
+      { op: "create_instance", assembly_id: "pp", component_id: "a", instance_id: "a1" },
+      { op: "fix_instance", assembly_id: "pp", instance_id: "a1" },
+      { op: "create_instance", assembly_id: "pp", component_id: "b", instance_id: "b1" },
+      { op: "set_perpendicular", assembly_id: "pp", a_instance: "a1", a_ref: "front_face", b_instance: "b1", b_ref: "top_face" },
+    ]);
+    const d = inspectData(doc, "pp") as any;
+    assert(d.solved, "unsolved");
+    // front(+y) vs top(+z): already perpendicular → redundant
+    const c = d.constraints.find((x: any) => x.kind === "perpendicular");
+    assert(c.status === "redundant" || Math.abs(Number(c.residual)) < 1e-6, JSON.stringify(c));
+    return `status=${c.status} residual=${c.residual}`;
+  });
+
+  run("P61-conflict", "parallel+perpendicular conflict", () => {
+    let doc = emptyDocument("p61c");
+    doc = apply(doc, [
+      { op: "create_box", name: "A", length_mm: 60, width_mm: 40, height_mm: 10 },
+      { op: "create_body", name: "BB" },
+      { op: "create_box", body_id: "BB", name: "B", length_mm: 30, width_mm: 30, height_mm: 12 },
+      { op: "create_assembly", name: "cf" },
+      { op: "define_component", assembly_id: "cf", component_id: "a", include: { body_ids: ["Body"] } },
+      { op: "define_component", assembly_id: "cf", component_id: "b", include: { body_ids: ["BB"] } },
+      { op: "create_instance", assembly_id: "cf", component_id: "a", instance_id: "a1" },
+      { op: "fix_instance", assembly_id: "cf", instance_id: "a1" },
+      { op: "create_instance", assembly_id: "cf", component_id: "b", instance_id: "b1" },
+      { op: "set_parallel", assembly_id: "cf", a_instance: "a1", a_ref: "top_face", b_instance: "b1", b_ref: "top_face" },
+      { op: "set_perpendicular", assembly_id: "cf", a_instance: "a1", a_ref: "top_face", b_instance: "b1", b_ref: "top_face" },
+    ]);
+    expectOpError(doc, { op: "inspect_assembly", assembly_id: "cf" } as Operation, "CONSTRAINT_CONFLICT");
+  });
+
+  // ---- DOF golden fixtures A–F -------------------------------------------------
+  function pinAssemblyDoc(): Doc {
+    let doc = emptyDocument("dof-pin");
+    doc = apply(doc, [
+      { op: "create_box", name: "P", length_mm: 80, width_mm: 50, height_mm: 12 },
+      { op: "create_hole", body_id: "Body", face: "top_face", x_mm: 20, y_mm: 25, diameter_mm: 8, through: true, name: "pin_hole" },
+      { op: "create_body", name: "PinBody" },
+      { op: "create_cylinder", body_id: "PinBody", name: "Pin", radius_mm: 4, height_mm: 24 },
+      { op: "create_assembly", name: "dof" },
+      { op: "define_component", assembly_id: "dof", component_id: "plate", include: { body_ids: ["Body"] } },
+      { op: "define_component", assembly_id: "dof", component_id: "pin", include: { body_ids: ["PinBody"] } },
+      { op: "create_instance", assembly_id: "dof", component_id: "plate", instance_id: "plate_1" },
+      { op: "fix_instance", assembly_id: "dof", instance_id: "plate_1" },
+      { op: "create_instance", assembly_id: "dof", component_id: "pin", instance_id: "pin_1" },
+    ]);
+    return doc;
+  }
+
   let failed = 0;
   for (const r of out) if (!r.passed) failed += 1;
   console.log(`\n${out.length - failed}/${out.length} assembly unit tests passed`);

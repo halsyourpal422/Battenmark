@@ -251,11 +251,17 @@ def handle(req: dict[str, Any]) -> dict[str, Any]:
             "assembly": args.get("assembly"),
             "definitions": args.get("definitions"),
             "placements": args.get("placements"),
+            "use_links": bool(args.get("use_links")),
+            "min_volume_mm3": args.get("min_volume_mm3"),
+            "instance_ids": args.get("instance_ids"),
         }
         try:
             if mode == "inspect":
                 built = assembly.build_assembly(payload)
                 return {"ok": True, "result": built["result"]}
+            if mode == "interference":
+                out = assembly.check_interference(payload)
+                return {"ok": True, "result": out["result"]}
             path = args.get("path")
             fmt = args.get("format")
             if not path or fmt not in ("fcstd", "step"):

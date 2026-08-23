@@ -206,6 +206,107 @@ async function main() {
     return `${pid0} → ${st.pid}; imported definitions resolve from persisted source`;
   });
 
+  // ================= Phase 6.1: interference + instance efficiency =================
+  async function interferenceFor(pid: string, assemblyId: string) {
+    const { getAgentCadService } = await import("../service/agentcad");
+    const r = await getAgentCadService().executeTool("check_interference", { project_id: pid, assembly_id: assemblyId });
+    assert(r.ok, JSON.stringify(r.error));
+    return r.data as Record<string, any>;
+  }
+
+  /**
+   * Two-component interference fixture built through the public contract:
+   * each component comes from its own single-part project (exported STEP,
+   * imported as definition), so snapshots are independent.
+   */
+  async function buildTwoBoxAssembly(offsetX: number): Promise<string> {
+    const { getAgentCadService } = await import("../service/agentcad");
+    const svc = getAgentCadService();
+    const paths: string[] = [];
+    for (const n of ["boxa", "boxb"]) {
+      const proj = (await svc.createProject({ name: `p61-${n}` })) as Record<string, any>;
+      const pid = (proj.data as Record<string, any>).project_id as string;
+      await svc.executeTool("create_box", { project_id: pid, length_mm: 20, width_mm: 20, height_mm: 20, name: "Box" });
+      const exp = await svc.executeTool("export_step", { project_id: pid });
+      assert(exp.ok, JSON.stringify(exp.error));
+      paths.push(getArtifact((exp.data as Record<string, any>).artifact_id as string)?.path ?? "");
+    }
+    assert(paths.every(Boolean), "step exports missing");
+    const host = (await svc.createProject({ name: `p61-host-${offsetX}` })) as Record<string, any>;
+    const pidH = (host.data as Record<string, any>).project_id as string;
+    await svc.executeTool("create_box", { project_id: pidH, length_mm: 1, width_mm: 1, height_mm: 1, name: "Anchor" });
+    await svc.executeTool("create_assembly", { project_id: pidH, name: "two_boxes" });
+    for (const [idx, p] of paths.entries()) {
+      await svc.executeTool("define_component", { project_id: pidH, assembly_id: "two_boxes", component_id: `c${idx}`, source_format: "step", source_path: p });
+    }
+    await svc.executeTool("create_instance", { project_id: pidH, assembly_id: "two_boxes", component_id: "c0", instance_id: "A", position: { x: 0 } });
+    await svc.executeTool("fix_instance", { project_id: pidH, assembly_id: "two_boxes", instance_id: "A" });
+    await svc.executeTool("create_instance", { project_id: pidH, assembly_id: "two_boxes", component_id: "c1", instance_id: "B", position: { x: offsetX } });
+    return pidH;
+  }
+
+  await check("p61-interference-overlap", async () => {
+    const pid = await buildTwoBoxAssembly(10);
+    const d = await interferenceFor(pid, "two_boxes");
+    const pair = (d.pairs as Array<Record<string, any>>)[0];
+    assert(pair && pair.intersects && approx(pair.volume_mm3, 4000, 5), JSON.stringify(d.pairs));
+    assert(d.stats.aabb_candidates >= 1 && d.stats.occ_boolean_calls >= 1, JSON.stringify(d.stats));
+    return `overlap=${pair.volume_mm3.toFixed(1)} mm³ occ_calls=${d.stats.occ_boolean_calls}`;
+  });
+
+  await check("p61-interference-separated", async () => {
+    const pid = await buildTwoBoxAssembly(25);
+    const d = await interferenceFor(pid, "two_boxes");
+    assert(d.pairs.length === 0, JSON.stringify(d.pairs));
+    return "no volumetric interference";
+  });
+
+  await check("p61-interference-contact", async () => {
+    const pid = await buildTwoBoxAssembly(20);
+    const d = await interferenceFor(pid, "two_boxes");
+    assert(d.pairs.length === 0, `contact misread as interference: ${JSON.stringify(d.pairs)}`);
+    return "face contact not flagged";
+  });
+
+  await check("p61-imported-overlap-restart", async () => {
+    const pid = await buildTwoBoxAssembly(10);
+    const before = await interferenceFor(pid, "two_boxes");
+    const pid0 = worker.getPid();
+    worker.kill("SIGKILL");
+    const st = await freeCadKernel.available();
+    assert(st.available && st.pid !== pid0, "restart failed");
+    const after = await interferenceFor(pid, "two_boxes");
+    assert(JSON.stringify(before.pairs) === JSON.stringify(after.pairs), "interference changed across restart");
+    return `identical post-restart (${after.stats.occ_boolean_calls} occ calls)`;
+  });
+
+  await check("p61-links-100", async () => {
+    const { getAgentCadService } = await import("../service/agentcad");
+    const svc = getAgentCadService();
+    const src = (await svc.createProject({ name: "p61-link-src" })) as Record<string, any>;
+    const pidS = (src.data as Record<string, any>).project_id as string;
+    await svc.executeTool("create_box", { project_id: pidS, length_mm: 80, width_mm: 50, height_mm: 12, name: "Golden" });
+    const exp = await svc.executeTool("export_step", { project_id: pidS });
+    const stepPath = getArtifact((exp.data as Record<string, any>).artifact_id as string)?.path ?? "";
+    const host = (await svc.createProject({ name: "p61-link-host" })) as Record<string, any>;
+    const pid = (host.data as Record<string, any>).project_id as string;
+    await svc.executeTool("create_box", { project_id: pid, length_mm: 1, width_mm: 1, height_mm: 1, name: "Anchor" });
+    await svc.executeTool("create_assembly", { project_id: pid, name: "link_asm" });
+    await svc.executeTool("define_component", { project_id: pid, assembly_id: "link_asm", component_id: "golden", source_format: "step", source_path: stepPath });
+    for (let i = 0; i < 100; i += 1) {
+      await svc.executeTool("create_instance", { project_id: pid, assembly_id: "link_asm", component_id: "golden", instance_id: `L${i}`, position: { x: i * 90 } });
+    }
+    await svc.executeTool("fix_instance", { project_id: pid, assembly_id: "link_asm", instance_id: "L0" });
+    const t0 = Date.now();
+    const rebuilt = await svc.executeTool("rebuild_assembly", { project_id: pid, assembly_id: "link_asm", use_links: true });
+    const ms = Date.now() - t0;
+    assert(rebuilt.ok, `rebuild failed: ${JSON.stringify(rebuilt.error ?? rebuilt).slice(0, 400)}`);
+    const inst = (rebuilt.data as Record<string, any>).instances as Array<Record<string, any>>;
+    assert(inst.length === 100, `instances ${inst.length}`);
+    assert(inst.every((i) => i.valid && approx(i.volume_mm3, 48000, 1)), `volume/validity drift: ${JSON.stringify(inst.find((i) => !i.valid || !approx(i.volume_mm3, 48000, 1)))}`);
+    return `100 linked instances rebuilt in ${ms} ms, all V=48000`;
+  });
+
   try {
     await worker.request("shutdown", {}, 5_000);
   } catch { /* ignore */ }

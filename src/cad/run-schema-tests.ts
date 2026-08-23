@@ -90,7 +90,7 @@ async function main() {
       assert(requiredCapabilitiesFor("create_hole", { through: true })[0] === "feature.hole.through", "through cap");
       const fc = freecadCapabilities({ available: true });
       assert(fc.capabilities["pattern.circular"] === false, "circular claimed");
-      assert(fc.capabilities.assembly === true && fc.capabilities["assembly.face_mate"] === true && fc.capabilities["assembly.interference"] === false, "assembly capability flags");
+      assert(fc.capabilities.assembly === true && fc.capabilities["assembly.face_mate"] === true && fc.capabilities["assembly.interference"] === true && fc.capabilities["assembly.parallel"] === true && fc.capabilities["assembly.instance_links"] === false, "assembly capability flags");
       assert(fc.capabilities["feature.hole.helical_thread"] === false, "helical claimed");
       return `tools=${TOOL_CATALOG.length}`;
     }),

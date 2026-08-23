@@ -16,6 +16,7 @@
 import type {
   Assembly,
   AssemblyConstraint,
+  AssemblyConstraintKind,
   AssemblyRef,
   AssemblyTransform,
   CadDocument,
@@ -30,6 +31,8 @@ import type { FaceFrame } from "../types";
 import {
   addVec,
   applyTransform,
+  normalizeQuat,
+  quatMultiply,
   composeTransform,
   crossVec,
   dotVec,
@@ -65,20 +68,104 @@ export interface ConstraintReport {
   status: ConstraintStatus;
   moved?: string;
   detail?: string;
+  removedDof?: number;
+  residual?: string;
+  reason?: string;
 }
 
-export interface InstanceDof {
+export interface DofReport {
   instanceId: string;
   remainingDof: number;
-  freeTranslation: number;
-  freeRotation: number;
+  freeTranslation: string[];
+  freeRotation: string[];
+}
+
+export type AssemblyConstraintState = "fully_constrained" | "underconstrained" | "conflicted" | "unsolved";
+
+/**
+ * Linearized rigid-body DOF rows in the solved world frame:
+ * rows[0..2] constrain translation along x/y/z, rows[3..5] rotation about
+ * x/y/z. Rank of the collected rows gives remaining freedom. This is a
+ * first-order (Level-1) model relative to solved anchors — exact for
+ * axis-aligned fixtures, an honest linearization otherwise. See
+ * docs/adr/0002-assembly-dof-model.md.
+ */
+function constraintRows(c: AssemblyConstraint, frames: { a: ResolvedFrame; b: ResolvedFrame }): number[][] {
+  const rows: number[][] = [];
+  const tRow = (v: Vec3) => [v.x, v.y, v.z];
+  switch (c.kind) {
+    case "fixed": return [[1,0,0],[0,1,0],[0,0,1],[1,0,0],[0,1,0],[0,0,1]];
+    case "mate_faces": case "distance": {
+      const n = frames.a.normal ?? { x: 0, y: 0, z: 1 };
+      rows.push(tRow(n));
+      if (c.kind === "mate_faces") {
+        const u = orthogonalPair(n);
+        rows.push(tRow(u.first), tRow(u.second));
+      }
+      return rows;
+    }
+    case "align_axes": case "concentric": case "parallel": {
+      const d = normalizeVec(frames.a.direction ?? frames.a.normal ?? { x: 0, y: 0, z: 1 });
+      const { first, second } = orthogonalPair(d);
+      rows.push(tRow(first), tRow(second));
+      if (c.kind === "concentric") {
+        rows.push([first.x, first.y, first.z], [second.x, second.y, second.z]);
+      }
+      return rows;
+    }
+    case "angle": case "perpendicular": {
+      const k = normalizeVec(crossVec(frames.b.normal ?? {x:0,y:0,z:1}, frames.a.normal ?? {x:0,y:1,z:0}));
+      if (vecLen(k) < EPS) return [];
+      return [tRow(k)];
+    }
+    default: return [];
+  }
+}
+
+function orthogonalPair(v: Vec3): { first: Vec3; second: Vec3 } {
+  const n = normalizeVec(v);
+  const seed = Math.abs(n.x) < 0.9 ? { x: 1, y: 0, z: 0 } : { x: 0, y: 1, z: 0 };
+  const first = normalizeVec(crossVec(n, seed));
+  const second = normalizeVec(crossVec(n, first));
+  return { first, second };
+}
+
+const AXIS_T = ["x", "y", "z"];
+const AXIS_R = ["about_x", "about_y", "about_z"];
+
+/** Gaussian-elimination rank with tolerance; also yields free-axis labels. */
+function rank6(rows: number[][]): { rank: number; freeT: number[]; freeR: number[] } {
+  const m = rows.map((r) => [...r]);
+  const pivots: number[] = [];
+  let r = 0;
+  for (let col = 0; col < 6 && r < m.length; col += 1) {
+    let pivotRow = -1;
+    for (let i = r; i < m.length; i += 1) {
+      if (Math.abs(m[i]![col]!) > 1e-8) { pivotRow = i; break; }
+    }
+    if (pivotRow < 0) continue;
+    [m[r], m[pivotRow]] = [m[pivotRow]!, m[r]!];
+    const pv = m[r]![col]!;
+    for (let i = r + 1; i < m.length; i += 1) {
+      const f = m[i]![col]! / pv;
+      if (Math.abs(f) < 1e-12) continue;
+      for (let j = col; j < 6; j += 1) m[i]![j] = m[i]![j]! - f * m[r]![j]!;
+    }
+    pivots.push(col);
+    r += 1;
+  }
+  const free: number[] = [];
+  for (let col = 0; col < 6; col += 1) if (!pivots.includes(col)) free.push(col);
+  return { rank: pivots.length, freeT: free.filter((c) => c < 3), freeR: free.filter((c) => c >= 3).map((c) => c - 3) };
 }
 
 export interface SolvedAssembly {
   solved: boolean;
+  constraintState: AssemblyConstraintState;
   placements: Record<string, AssemblyTransform>;
   constraints: ConstraintReport[];
-  dof: InstanceDof[];
+  dof: DofReport[];
+  remainingDofTotal: number;
   worldBBox: { min: Vec3; max: Vec3 } | null;
 }
 
@@ -377,32 +464,68 @@ function refLabel(r: AssemblyRef): string {
   return `face:${typeof r.face === "string" ? r.face : stableStringify(r.face)}`;
 }
 
+/** Centralized solver/inspection tolerances (mm and degrees). */
+export const SOLVER_TOLERANCES = {
+  distanceMm: 1e-6,
+  angleDeg: 1e-4,
+  interferenceVolumeMm3: 1e-6,
+};
+
+function secondRef(c: AssemblyConstraint): AssemblyRef {
+  const r = c.refs[1];
+  if (!r) throw cadError("INVALID_ASSEMBLY_REFERENCE", "Constraint needs two references.", { constraint: c.id });
+  return r;
+}
+
+/** Constraint-kind pairs that cannot coexist on the same reference pair. */
+const CONTRADICTORY_KINDS: Array<[AssemblyConstraintKind, AssemblyConstraintKind]> = [
+  ["parallel", "perpendicular"],
+];
+
 function checkConflicts(asm: Assembly): void {
-  const seen = new Map<string, AssemblyConstraint>();
+  interface Group {
+    first: AssemblyConstraint;
+    kinds: Map<AssemblyConstraintKind, AssemblyConstraint>;
+  }
+  const groups = new Map<string, Group>();
   for (const c of asm.constraints) {
-    const key = pairKey(c);
-    if (!key) continue;
-    const prev = seen.get(key);
-    if (!prev) {
-      seen.set(key, c);
+    if (c.refs.length !== 2) continue;
+    const base = [c.refs[0].instance, refLabel(c.refs[0]), c.refs[1].instance, refLabel(c.refs[1])].join("|");
+    let g = groups.get(base);
+    if (!g) {
+      g = { first: c, kinds: new Map() };
+      groups.set(base, g);
+    }
+    if (!g.kinds.has(c.kind)) {
+      g.kinds.set(c.kind, c);
       continue;
     }
+    // Same kind, same references: value comparison decides conflict/redundant.
+    const prev = g.kinds.get(c.kind)!;
     const valueOf = (x: AssemblyConstraint) => x.distanceMm ?? x.angleDeg ?? x.offsetMm ?? 0;
-    if (Math.abs(valueOf(prev) - valueOf(c)) > 1e-6) {
+    const hasValue = c.distanceMm !== undefined || c.angleDeg !== undefined || c.offsetMm !== undefined;
+    if (hasValue && Math.abs(valueOf(prev) - valueOf(c)) > 1e-6) {
       throw cadError(
         "CONSTRAINT_CONFLICT",
         `Constraints '${prev.id}' and '${c.id}' demand different values (${valueOf(prev)} vs ${valueOf(c)}) for the same references.`,
         { constraint_a: prev.id, constraint_b: c.id },
       );
     }
+    if (!hasValue || Math.abs(valueOf(prev) - valueOf(c)) <= 1e-6) {
+      (c as AssemblyConstraint & { _redundantOf?: string })._redundantOf = prev.id;
+    }
   }
-}
-
-
-function secondRef(c: AssemblyConstraint): AssemblyRef {
-  const r = c.refs[1];
-  if (!r) throw cadError("INVALID_ASSEMBLY_REFERENCE", "Constraint needs two references.", { constraint: c.id });
-  return r;
+  for (const [base, g] of groups) {
+    for (const [a, b] of CONTRADICTORY_KINDS) {
+      if (g.kinds.has(a) && g.kinds.has(b)) {
+        throw cadError(
+          "CONSTRAINT_CONFLICT",
+          `Constraints on '${base}' demand both ${a} and ${b} — mechanically impossible.`,
+          { key: base },
+        );
+      }
+    }
+  }
 }
 
 function worldFrames(asm: Assembly, c: AssemblyConstraint) {
@@ -482,6 +605,50 @@ function applyConstraint(asm: Assembly, c: AssemblyConstraint): { moved: string 
       bInst.transform = rotOnly as unknown as AssemblyTransform;
       return { moved: bInst.id };
     }
+    case "parallel": {
+      const { a, b } = worldFrames(asm, c);
+      const na = a.direction ?? a.normal;
+      const nb = b.direction ?? b.normal;
+      if (!na || !nb) throw invalidRef(c, "planar faces or axes");
+      // Parallel accepts both orientations; choose the one requiring the
+      // SMALLER rotation from the current placement (no surprise 180° flips).
+      const dotNow = dotVec(nb!, na!);
+      const target = dotNow >= 0 ? na! : scaleVec(na!, -1);
+      const qDelta = quatFromTo(nb!, target);
+      // Pure orientation relationship: rotate about the mover's own reference
+      // point so its position is unchanged; only orientation is adjusted.
+      // Orientation-only relationship: translation vector is preserved.
+      bInst.transform = {
+        translation: current.translation,
+        rotation: normalizeQuat(quatMultiply(qDelta, current.rotation)),
+      } as unknown as AssemblyTransform;
+      return { moved: bInst.id };
+    }
+    case "perpendicular": {
+      const { a, b } = worldFrames(asm, c);
+      const na = a.direction ?? a.normal;
+      const nb = b.direction ?? b.normal;
+      if (!na || !nb) throw invalidRef(c, "planar faces or axes");
+      // Minimal rotation onto the plane orthogonal to the anchor direction:
+      // project the moving normal onto that plane and rotate onto it.
+      const d = dotVec(nb!, na!);
+      if (Math.abs(d) < EPS) return "redundant";
+      let proj = subVec(nb!, scaleVec(na!, d));
+      if (vecLen(proj) < EPS) {
+        // Moving normal is parallel to the anchor: infinitely many valid
+        // perpendicular orientations. Stable secondary rule: pivot about the
+        // least-aligned coordinate axis of the anchor normal.
+        const axis =
+          Math.abs(na!.x) < 0.9 ? { x: 1, y: 0, z: 0 } : { x: 0, y: 1, z: 0 };
+        proj = normalizeVec(crossVec(na!, axis));
+      }
+      const qDelta = quatFromTo(nb!, normalizeVec(proj));
+      bInst.transform = {
+        translation: current.translation,
+        rotation: normalizeQuat(quatMultiply(qDelta, current.rotation)),
+      } as unknown as AssemblyTransform;
+      return { moved: bInst.id };
+    }
     default:
       throw cadError("CONSTRAINT_UNSUPPORTED", `Constraint kind '${c.kind}' is not supported yet.`, {
         constraint: c.id,
@@ -535,6 +702,41 @@ function meshWorldBBox(doc: CadDocument, asm: Assembly, placements: Record<strin
   return min && max ? { min, max } : null;
 }
 
+/** Post-solve residuals per applied constraint (diagnostic + validation). */
+function residualOf(asm: Assembly, c: AssemblyConstraint): number {
+  const { a, b } = worldFrames(asm, c);
+  switch (c.kind) {
+    case "mate_faces": case "distance": {
+      const n = a.normal ?? { x: 0, y: 0, z: 1 };
+      const gap = dotVec(subVec(a.point, b.point), n);
+      const want = c.kind === "distance" ? -(c.distanceMm ?? 0) : -(c.offsetMm ?? 0);
+      return Math.abs(gap - want);
+    }
+    case "parallel": {
+      const d = Math.abs(dotVec(normalizeVec(b.direction ?? b.normal ?? {x:0,y:0,z:1}), normalizeVec(a.direction ?? a.normal ?? {x:0,y:0,z:1})));
+      return Math.abs(1 - d);
+    }
+    case "perpendicular": {
+      return Math.abs(dotVec(normalizeVec(b.direction ?? b.normal ?? {x:0,y:0,z:1}), normalizeVec(a.direction ?? a.normal ?? {x:0,y:1,z:1})));
+    }
+    case "concentric": {
+      const da = normalizeVec(a.direction ?? a.normal ?? {x:0,y:0,z:1});
+      const db = normalizeVec(b.direction ?? b.normal ?? {x:0,y:0,z:1});
+      const off = subVec(b.point, a.point);
+      const perp = subVec(off, scaleVec(da, dotVec(off, da)));
+      return vecLen(perp) + Math.abs(1 - Math.abs(dotVec(da, db)));
+    }
+    case "angle": {
+      const na = normalizeVec(a.normal ?? {x:0,y:0,z:1});
+      const nb = normalizeVec(b.normal ?? {x:0,y:1,z:0});
+      const cur = Math.acos(Math.max(-1, Math.min(1, dotVec(na, nb)))) * (180 / Math.PI);
+      let delta = Math.abs(cur - (c.angleDeg ?? 90));
+      return Math.min(delta, 360 - delta);
+    }
+    default: return 0;
+  }
+}
+
 /** Solve an assembly deterministically and report honest constraint/DOF state. */
 export function solveAssembly(doc: CadDocument, assemblyId: string): SolvedAssembly {
   const asm = requireAssembly(doc, assemblyId);
@@ -584,27 +786,64 @@ export function solveAssembly(doc: CadDocument, assemblyId: string): SolvedAssem
   }
 
   const placements: Record<string, AssemblyTransform> = {};
-  const dof: InstanceDof[] = [];
+  const dof: DofReport[] = [];
   for (const inst of asm.instances) {
     placements[inst.id] = inst.transform;
-    if (!inst.fixed) {
-      // Coarse honest accounting: each applied constraint that MOVED this
-      // instance removed DOF; exact symbolic counting is out of Phase 6 scope.
-      const movedCount = [...reports.values()].filter((r) => r.moved === inst.id && r.status === "applied").length;
-      const remaining = Math.max(0, 6 - Math.min(6, movedCount));
-      dof.push({ instanceId: inst.id, remainingDof: remaining, freeTranslation: Math.min(3, remaining), freeRotation: Math.max(0, remaining - 3) });
-    } else {
-      dof.push({ instanceId: inst.id, remainingDof: 0, freeTranslation: 0, freeRotation: 0 });
+    if (inst.fixed) {
+      dof.push({ instanceId: inst.id, remainingDof: 0, freeTranslation: [], freeRotation: [] });
+      continue;
     }
+    // Level-1 rank model: rows from constraints that MOVED this instance,
+    // evaluated in the solved world frame relative to their anchors.
+    const rows: number[][] = [];
+    const removedByConstraint = new Map<string, number>();
+    let beforeRank = 0;
+    const ordered = asm.constraints.filter(
+      (c) => reports.get(c.id)?.moved === inst.id && reports.get(c.id)?.status === "applied",
+    );
+    const rowCache = new Map<string, number[][]>();
+    for (const c of ordered) {
+      const frames = worldFrames(asm, c);
+      const rs = constraintRows(c, frames);
+      rowCache.set(c.id, rs);
+      const probe = rank6([...rows, ...rs]);
+      removedByConstraint.set(c.id, probe.rank - beforeRank);
+      beforeRank = probe.rank;
+      rows.push(...rs);
+    }
+    // Re-rank with final geometry for the honest end-state number.
+    const finalRows: number[][] = [];
+    for (const c of ordered) finalRows.push(...(rowCache.get(c.id) ?? constraintRows(c, worldFrames(asm, c))));
+    const { rank, freeT, freeR } = rank6(finalRows);
+    for (const c of ordered) {
+      const rep = reports.get(c.id)!;
+      rep.removedDof = removedByConstraint.get(c.id) ?? 0;
+      rep.residual = residualOf(asm, c).toFixed(9);
+    }
+    dof.push({
+      instanceId: inst.id,
+      remainingDof: 6 - rank,
+      freeTranslation: freeT.map((i) => AXIS_T[i]!),
+      freeRotation: freeR.map((i) => AXIS_R[i]!),
+    });
   }
 
   const deferred = [...reports.values()].filter((r) => r.status === "deferred");
   const worldBBox = meshWorldBBox(doc, asm, placements);
+  const totalRemaining = dof.reduce((acc, d) => acc + d.remainingDof, 0);
+  const anyFree = dof.some((d) => d.remainingDof > 0);
+  const constraintState: AssemblyConstraintState = deferred.length
+    ? "unsolved"
+    : totalRemaining === 0 && !anyFree
+      ? "fully_constrained"
+      : "underconstrained";
   return {
     solved: deferred.length === 0,
+    constraintState,
     placements,
     constraints: [...reports.values()],
     dof,
+    remainingDofTotal: totalRemaining,
     worldBBox,
   };
 }

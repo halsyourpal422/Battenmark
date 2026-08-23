@@ -46,6 +46,8 @@ import {
   setDefinitionParameter as asmSetDefParam,
   setDistance as asmSetDistance,
   setInstanceTransform as asmSetInstanceTransform,
+  setParallel as asmSetParallel,
+  setPerpendicular as asmSetPerp,
 } from "./assembly/mutations";
 
 function vec(partial?: Partial<Vec3Expr>): Vec3Expr {
@@ -858,6 +860,10 @@ function applyMutating(doc: CadDocument, op: Operation): ToolResult {
       return asmSetDistance(doc, op);
     case "set_angle":
       return asmSetAngle(doc, op);
+    case "set_parallel":
+      return asmSetParallel(doc, op);
+    case "set_perpendicular":
+      return asmSetPerp(doc, op);
     case "remove_constraint":
       return asmRemoveConstraint(doc, op);
     case "inspect_assembly":
