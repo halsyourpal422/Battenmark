@@ -99,6 +99,10 @@ jobs:
           npm run --silent test:freecad
           echo "== test:parity =="
           npm run --silent test:parity
+          echo "== test:assembly =="
+          npm run --silent test:assembly
+          echo "== test:assembly-freecad =="
+          npm run --silent test:assembly-freecad
 
   transports:
     name: service / persistence / http / cli / mcp / transport-parity
