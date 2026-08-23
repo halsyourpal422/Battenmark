@@ -104,12 +104,9 @@ const assemblyRefFace = {
 };
 
 const assemblyRefAxis = {
-  anyOf: [
-    { type: "string", enum: ["X", "Y", "Z"], description: "Named coordinate axis." },
-    { type: "string", description: "Cylinder/hole feature name or id whose axis is used." },
-    geometrySelector,
-  ],
-  description: "Component-local axis reference.",
+  type: "string",
+  description:
+    "Axis reference: X/Y/Z coordinate axis, or the feature/body name of cylindrical geometry (hole or cylinder). Structured selector objects are not supported for axes yet.",
 };
 
 function assemblyEntry(

@@ -249,41 +249,100 @@ function axisFrame(def: ComponentDefinition, spec: string): ResolvedFrame | null
   return null;
 }
 
-function resolveRef(asm: Assembly, ref: AssemblyRef): ResolvedFrame {
-  const def = definitionOf(asm, ref.instance);
-  let local: ResolvedFrame | null = null;
+function resolveComponentRef(def: ComponentDefinition, ref: AssemblyRef): ResolvedFrame {
   if (ref.axis !== undefined) {
-    const spec = typeof ref.axis === "string" ? ref.axis : selectorText(ref.axis);
-    local = axisFrame(def, spec ?? "");
-    if (!local) {
-      throw cadError("INVALID_ASSEMBLY_REFERENCE", `Axis '${spec}' did not resolve on '${def.id}'.`, {
-        instance: ref.instance,
-      });
-    }
-  } else {
-    const faceSpec = ref.face;
-    const nameOrSelector = typeof faceSpec === "string" ? faceSpec : selectorText(faceSpec) ?? "";
-    local = faceFrameByName(def, nameOrSelector);
-    if (!local) {
+    if (typeof ref.axis !== "string") {
       throw cadError(
-        "GEOMETRY_REFERENCE_LOST",
-        `Reference '${nameOrSelector}' did not resolve on component '${def.id}'.`,
-        { instance: ref.instance },
+        "INVALID_ASSEMBLY_REFERENCE",
+        "Structured axis selectors are not supported yet: reference cylindrical/hole features by feature or body name, or use X/Y/Z.",
+        { component: def.id },
       );
     }
+    const axisResolved = axisFrame(def, ref.axis);
+    if (!axisResolved) {
+      throw cadError("INVALID_ASSEMBLY_REFERENCE", `Axis '${ref.axis}' did not resolve on '${def.id}'.`, {
+        component: def.id,
+      });
+    }
+    return axisResolved;
   }
-  const inst = requireInstance(asm, ref.instance);
-  const T = inst.transform as unknown as RigidTransform;
-  const point = applyTransform(T, local.point);
-  const normal = local.normal ? rotateVector(T.rotation, local.normal) : undefined;
-  const direction = local.direction ? rotateVector(T.rotation, local.direction) : undefined;
-  return { ...local, point, normal, direction };
+  const faceSpec = ref.face;
+  if (faceSpec === undefined) {
+    throw cadError("INVALID_ASSEMBLY_REFERENCE", "Reference needs a face or an axis.", { component: def.id });
+  }
+  const evaluation = evaluateDocument(defDocument(def));
+  if (typeof faceSpec === "string" && KNOWN_FACE_NAMES.has(faceSpec)) {
+    for (const body of evaluation.bodies) {
+      if (body.consumed || !body.visible) continue;
+      const ff = body.faces.find((f) => f.name === faceSpec);
+      if (ff) {
+        return {
+          kind: "plane", point: ff.origin, normal: normalizeVec(ff.normal),
+          uDir: ff.uDir, vDir: ff.vDir, widthMm: ff.width, heightMm: ff.height, label: faceSpec,
+        };
+      }
+    }
+    throw cadError("GEOMETRY_REFERENCE_LOST", `Face '${faceSpec}' did not resolve on '${def.id}'.`, { component: def.id });
+  }
+  // Semantic selector (string kind, structured object, or gref): one canonical
+  // path through queryEnvelopeGeometry, which owns gref/nearest/unique rules.
+  // Unknown free-text names are LOST, never defaulted to a match-all kind.
+  const isKnownKind =
+    typeof faceSpec === "string" &&
+    (FACE_SELECTOR_KINDS as readonly string[]).includes(faceSpec);
+  const isStructured =
+    typeof faceSpec === "object" &&
+    faceSpec !== null &&
+    (("gref" in faceSpec) || ("nearest" in faceSpec) || ("centroid_near" in faceSpec) ||
+      ("within_bbox" in faceSpec) || ("selector" in (faceSpec as Record<string, unknown>)));
+  if (typeof faceSpec === "string" && !isKnownKind) {
+    throw cadError("GEOMETRY_REFERENCE_LOST", `Face '${faceSpec}' did not resolve on '${def.id}'.`, {
+      component: def.id,
+    });
+  }
+  if (typeof faceSpec !== "string" && !isStructured) {
+    throw cadError("GEOMETRY_REFERENCE_LOST", "Reference did not resolve on this component.", {
+      component: def.id,
+    });
+  }
+  const matches: import("../types").GeometryMatch[] = [];
+  const vars = resolveParameters(def.parameters);
+  for (const body of evaluation.bodies) {
+    if (body.consumed || !body.visible || !body.mesh) continue;
+    const sel = normalizeSelector(faceSpec as never, "face", "planar");
+    const res = queryEnvelopeGeometry(envelopeOf(body), sel, vars);
+    matches.push(...res.matches);
+  }
+  if (matches.length === 0) {
+    throw cadError("GEOMETRY_REFERENCE_LOST", `Selector did not match any face on '${def.id}'.`, {
+      component: def.id,
+      selector: typeof faceSpec === "string" ? faceSpec : JSON.stringify(faceSpec),
+    });
+  }
+  if (matches.length > 1) {
+    throw cadError(
+      "GEOMETRY_REFERENCE_AMBIGUOUS",
+      `Selector matched ${matches.length} faces on '${def.id}'; no arbitrary choice is made.`,
+      { component: def.id, match_count: matches.length },
+    );
+  }
+  const m = matches[0]!;
+  if (!m.centroid || !m.normal) {
+    throw cadError("INVALID_ASSEMBLY_REFERENCE", `Matched face on '${def.id}' lacks centroid/normal for constraint use.`, {});
+  }
+  return { kind: "plane", point: m.centroid, normal: normalizeVec(m.normal), label: String(m.semantic_id) };
 }
 
-function secondRef(c: AssemblyConstraint): AssemblyRef {
-  const r = c.refs[1];
-  if (!r) throw invalidRef(c, "two references");
-  return r;
+function resolveRef(asm: Assembly, ref: AssemblyRef): ResolvedFrame {
+  const def = definitionOf(asm, ref.instance);
+  const local = resolveComponentRef(def, ref);
+  const T = requireInstance(asm, ref.instance).transform as unknown as RigidTransform;
+  return {
+    ...local,
+    point: applyTransform(T, local.point),
+    normal: local.normal ? rotateVector(T.rotation, local.normal) : undefined,
+    direction: local.direction ? rotateVector(T.rotation, local.direction) : undefined,
+  };
 }
 
 function selectorText(sel: unknown): string | null {
@@ -326,6 +385,13 @@ function checkConflicts(asm: Assembly): void {
       );
     }
   }
+}
+
+
+function secondRef(c: AssemblyConstraint): AssemblyRef {
+  const r = c.refs[1];
+  if (!r) throw cadError("INVALID_ASSEMBLY_REFERENCE", "Constraint needs two references.", { constraint: c.id });
+  return r;
 }
 
 function worldFrames(asm: Assembly, c: AssemblyConstraint) {
@@ -418,9 +484,10 @@ function invertAround(pivot: Vec3, t: RigidTransform): RigidTransform {
 }
 
 function localPoint(asm: Assembly, ref: AssemblyRef): Vec3 {
+  // Same canonical resolver as world-space lookups: the pivot is the actual
+  // selected geometry's local point. No silent origin fallback.
   const def = definitionOf(asm, ref.instance);
-  const local = ref.axis !== undefined ? axisFrame(def, String(ref.axis)) : faceFrameByName(def, String(ref.face));
-  return local?.point ?? { x: 0, y: 0, z: 0 };
+  return resolveComponentRef(def, ref).point;
 }
 
 function projectOnAxis(v: Vec3, axis: Vec3): number {
