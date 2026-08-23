@@ -1,0 +1,310 @@
+import type { CadDocument, Operation } from "./types";
+import { emptyDocument } from "./document";
+import { applyAll } from "./operations";
+
+export interface ExampleDef {
+  id: string;
+  title: string;
+  blurb: string;
+  ops: Operation[];
+}
+
+const PRIMITIVES: Operation[] = [
+  { op: "create_document", name: "Primitives" },
+  { op: "create_box", name: "Block", length_mm: 40, width_mm: 24, height_mm: 16 },
+  {
+    op: "create_cylinder",
+    name: "Boss",
+    radius_mm: 8,
+    height_mm: 22,
+    origin: { x: 55, y: 12, z: 0 },
+  },
+  {
+    op: "create_sphere",
+    name: "Ball",
+    radius_mm: 12,
+    origin: { x: 90, y: 12, z: 12 },
+  },
+  { op: "save_revision", label: "primitives" },
+];
+
+const BRACKET: Operation[] = [
+  { op: "create_document", name: "L-bracket" },
+  { op: "define_parameter", name: "length", value: 60 },
+  { op: "define_parameter", name: "flange", value: 36 },
+  { op: "define_parameter", name: "thickness", value: 4 },
+  { op: "define_parameter", name: "height", value: 40 },
+  { op: "define_parameter", name: "hole_d", value: 5.2 },
+  { op: "define_parameter", name: "inset", value: 8 },
+  {
+    op: "create_box",
+    name: "BaseFlange",
+    length_mm: "length",
+    width_mm: "flange",
+    height_mm: "thickness",
+  },
+  {
+    op: "create_hole",
+    body_id: "Body",
+    face: "top_face",
+    x_mm: "inset",
+    y_mm: "inset",
+    diameter_mm: "hole_d",
+    through: true,
+    name: "MountA",
+  },
+  {
+    op: "create_hole",
+    body_id: "Body",
+    face: "top_face",
+    x_mm: "length - inset",
+    y_mm: "inset",
+    diameter_mm: "hole_d",
+    through: true,
+    name: "MountB",
+  },
+  { op: "create_body", name: "Web" },
+  {
+    op: "create_box",
+    body_id: "Web",
+    name: "Upright",
+    length_mm: "length",
+    width_mm: "thickness",
+    height_mm: "height",
+  },
+  {
+    op: "create_hole",
+    body_id: "Web",
+    face: "front_face",
+    x_mm: "inset",
+    y_mm: "height - inset",
+    diameter_mm: "hole_d",
+    through: true,
+    name: "WallA",
+  },
+  {
+    op: "create_hole",
+    body_id: "Web",
+    face: "front_face",
+    x_mm: "length - inset",
+    y_mm: "height - inset",
+    diameter_mm: "hole_d",
+    through: true,
+    name: "WallB",
+  },
+  {
+    op: "boolean",
+    target_body_id: "Body",
+    tool_body_id: "Web",
+    operation: "union",
+    name: "JoinWeb",
+  },
+  { op: "fillet", body_id: "Body", radius_mm: 1.5, name: "SoftEdges" },
+  { op: "save_revision", label: "bracket v1" },
+];
+
+const ENCLOSURE: Operation[] = [
+  { op: "create_document", name: "Enclosure" },
+  { op: "define_parameter", name: "inner_length", value: 100 },
+  { op: "define_parameter", name: "inner_width", value: 68 },
+  { op: "define_parameter", name: "inner_height", value: 16.4 },
+  { op: "define_parameter", name: "wall", value: 2.4 },
+  { op: "define_parameter", name: "floor_thickness", value: 2.4 },
+  { op: "define_parameter", name: "lid_clearance", value: 7.2 },
+  { op: "define_parameter", name: "lid_height", value: 12 },
+  { op: "define_parameter", name: "lid_pocket", value: 10 },
+  { op: "define_parameter", name: "post_radius", value: 3.6 },
+  { op: "define_parameter", name: "post_height", value: 10 },
+  { op: "define_parameter", name: "pcb_offset", value: 5.6 },
+  { op: "define_parameter", name: "usb_width", value: 12 },
+  { op: "define_parameter", name: "usb_height", value: 7 },
+  { op: "define_parameter", name: "usb_z", value: 6 },
+  { op: "define_parameter", name: "usb_overhang", value: 1 },
+  { op: "define_parameter", name: "fillet_radius", value: 3 },
+  { op: "define_parameter", name: "screw_d", value: 3.2 },
+  { op: "define_parameter", name: "outer_height", value: 0, expression: "floor_thickness + inner_height" },
+  { op: "create_body", name: "Base" },
+  {
+    op: "create_box",
+    body_id: "Base",
+    name: "Outer",
+    length_mm: "inner_length + 2 * wall",
+    width_mm: "inner_width + 2 * wall",
+    height_mm: "outer_height",
+  },
+  { op: "create_body", name: "Cavity" },
+  {
+    op: "create_box",
+    body_id: "Cavity",
+    name: "InnerCut",
+    length_mm: "inner_length",
+    width_mm: "inner_width",
+    height_mm: "inner_height + 4",
+    origin: { x: "wall", y: "wall", z: "floor_thickness" },
+  },
+  {
+    op: "boolean",
+    target_body_id: "Base",
+    tool_body_id: "Cavity",
+    operation: "subtract",
+    name: "Shell",
+  },
+  { op: "create_body", name: "UsbTool" },
+  {
+    op: "create_box",
+    body_id: "UsbTool",
+    name: "UsbSlot",
+    length_mm: "usb_width",
+    width_mm: "wall + 2 * usb_overhang",
+    height_mm: "usb_height",
+    origin: {
+      x: "wall + (inner_length - usb_width) / 2",
+      y: "inner_width + wall - usb_overhang",
+      z: "usb_z",
+    },
+  },
+  {
+    op: "boolean",
+    target_body_id: "Base",
+    tool_body_id: "UsbTool",
+    operation: "subtract",
+    name: "UsbCutout",
+  },
+  {
+    op: "create_hole",
+    body_id: "Base",
+    face: "bottom_face",
+    x_mm: "wall + pcb_offset",
+    y_mm: "wall + pcb_offset",
+    diameter_mm: "screw_d",
+    through: true,
+    name: "ScrewFL",
+  },
+  {
+    op: "create_hole",
+    body_id: "Base",
+    face: "bottom_face",
+    x_mm: "inner_length + wall - pcb_offset",
+    y_mm: "wall + pcb_offset",
+    diameter_mm: "screw_d",
+    through: true,
+    name: "ScrewFR",
+  },
+  {
+    op: "create_hole",
+    body_id: "Base",
+    face: "bottom_face",
+    x_mm: "wall + pcb_offset",
+    y_mm: "inner_width + wall - pcb_offset",
+    diameter_mm: "screw_d",
+    through: true,
+    name: "ScrewBL",
+  },
+  {
+    op: "create_hole",
+    body_id: "Base",
+    face: "bottom_face",
+    x_mm: "inner_length + wall - pcb_offset",
+    y_mm: "inner_width + wall - pcb_offset",
+    diameter_mm: "screw_d",
+    through: true,
+    name: "ScrewBR",
+  },
+  { op: "create_body", name: "PostFL" },
+  {
+    op: "create_cylinder",
+    body_id: "PostFL",
+    name: "BossFL",
+    radius_mm: "post_radius",
+    height_mm: "post_height",
+    origin: { x: "wall + pcb_offset", y: "wall + pcb_offset", z: "floor_thickness" },
+  },
+  { op: "create_body", name: "PostFR" },
+  {
+    op: "create_cylinder",
+    body_id: "PostFR",
+    name: "BossFR",
+    radius_mm: "post_radius",
+    height_mm: "post_height",
+    origin: { x: "inner_length + wall - pcb_offset", y: "wall + pcb_offset", z: "floor_thickness" },
+  },
+  { op: "create_body", name: "PostBL" },
+  {
+    op: "create_cylinder",
+    body_id: "PostBL",
+    name: "BossBL",
+    radius_mm: "post_radius",
+    height_mm: "post_height",
+    origin: { x: "wall + pcb_offset", y: "inner_width + wall - pcb_offset", z: "floor_thickness" },
+  },
+  { op: "create_body", name: "PostBR" },
+  {
+    op: "create_cylinder",
+    body_id: "PostBR",
+    name: "BossBR",
+    radius_mm: "post_radius",
+    height_mm: "post_height",
+    origin: { x: "inner_length + wall - pcb_offset", y: "inner_width + wall - pcb_offset", z: "floor_thickness" },
+  },
+  { op: "boolean", target_body_id: "Base", tool_body_id: "PostFL", operation: "union", name: "JoinFL" },
+  { op: "boolean", target_body_id: "Base", tool_body_id: "PostFR", operation: "union", name: "JoinFR" },
+  { op: "boolean", target_body_id: "Base", tool_body_id: "PostBL", operation: "union", name: "JoinBL" },
+  { op: "boolean", target_body_id: "Base", tool_body_id: "PostBR", operation: "union", name: "JoinBR" },
+  { op: "fillet", body_id: "Base", radius_mm: "fillet_radius", edges: "all_vertical", name: "OuterFillet" },
+  { op: "create_body", name: "Lid" },
+  {
+    op: "create_box",
+    body_id: "Lid",
+    name: "LidOuter",
+    length_mm: "inner_length + 2 * wall",
+    width_mm: "inner_width + 2 * wall",
+    height_mm: "lid_height",
+    origin: { x: 0, y: 0, z: "outer_height + lid_clearance" },
+  },
+  { op: "create_body", name: "LidCav" },
+  {
+    op: "create_box",
+    body_id: "LidCav",
+    name: "LidPocket",
+    length_mm: "inner_length",
+    width_mm: "inner_width",
+    height_mm: "lid_pocket",
+    origin: { x: "wall", y: "wall", z: "outer_height + lid_clearance" },
+  },
+  {
+    op: "boolean",
+    target_body_id: "Lid",
+    tool_body_id: "LidCav",
+    operation: "subtract",
+    name: "LidShell",
+  },
+  { op: "fillet", body_id: "Lid", radius_mm: "fillet_radius", edges: "all_vertical", name: "LidFillet" },
+  { op: "save_revision", label: "enclosure v1" },
+];
+
+export const EXAMPLES: ExampleDef[] = [
+  { id: "primitives", title: "Primitives", blurb: "Box, cylinder, and sphere.", ops: PRIMITIVES },
+  { id: "bracket", title: "L-bracket", blurb: "Parametric flange, web, and holes.", ops: BRACKET },
+  {
+    id: "enclosure",
+    title: "Enclosure",
+    blurb: "Base + lid, walls, posts, M3 holes, USB cutout.",
+    ops: ENCLOSURE,
+  },
+];
+
+export function runExample(id: string): {
+  document: CadDocument;
+  results: ReturnType<typeof applyAll>["results"];
+} {
+  const ex = EXAMPLES.find((e) => e.id === id);
+  if (!ex) throw new Error(`Unknown example ${id}`);
+  return applyAll(emptyDocument(ex.title), ex.ops);
+}
+
+export const SUGGESTED_PROMPTS = [
+  "Create an 80 × 50 × 12 mm box with 3 mm corner fillets and four Ø3.2 mm through holes inset 8 mm from each corner on the top face.",
+  "Design a parametric L-bracket 60 × 36 × 40 mm, 4 mm thick, with two mounting holes on each flange.",
+  "Make an electronics enclosure, 100 × 68 inner, 2.4 mm walls, USB cutout on the front, four M3 holes and PCB posts.",
+  "Change wall to 3.0 mm and revalidate.",
+];

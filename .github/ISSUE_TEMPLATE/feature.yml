@@ -1,0 +1,25 @@
+name: Feature
+description: Propose a backend-neutral CAD capability.
+title: "[feature] "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: intent
+    attributes:
+      label: Design intent
+      description: Describe the operation in backend-neutral terms (e.g. mate two faces, circular pattern).
+    validations:
+      required: true
+  - type: textarea
+    id: capability
+    attributes:
+      label: Capability key
+      description: Proposed key such as `pattern.circular` or `assembly`.
+  - type: checkboxes
+    id: not-phase
+    attributes:
+      label: This is not
+      options:
+        - label: A FreeCAD-only Python hook (`eval_python`)
+        - label: A silent fallback that changes design intent
+        - label: A second CAD engine for one transport

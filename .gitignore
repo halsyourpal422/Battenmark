@@ -1,0 +1,88 @@
+# Dependencies
+node_modules/
+.pnp
+.pnp.js
+
+# Build / bundler
+dist/
+.output/
+.nitro/
+.vinxi/
+.tanstack/
+*.tsbuildinfo
+
+# Builder / host platform (not part of the CAD product)
+.grok/
+.vercel/
+.cache/
+cache/
+artifacts/
+attachments/
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs and OS
+*.log
+logs/
+.DS_Store
+Thumbs.db
+
+# Editor
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+.pytest_cache/
+.mypy_cache/
+.venv/
+venv/
+
+# CAD workspace generated output (keep project.json / document.json / committed fixtures)
+projects/*/logs/
+projects/*/exports/
+projects/*/source/*.FCBak
+projects/*/artifacts/
+projects/_artifacts.json
+
+# Release cut: origin-platform app chrome is not part of the public Battenmark alpha.
+# These stay on local disks only; the repository ships the CAD foundation.
+AGENTS.md
+startup.sh
+vite.config.ts
+server/
+public/
+migrations/
+screenshots/
+projects/
+.node_modules.lock
+
+# Studio application sources excluded from the alpha (CAD service ships alone)
+src/components/
+src/lib/
+src/routes/
+src/store/
+src/router.tsx
+src/routeTree.gen.ts
+src/styles.css
+
+# Platform-chrome build scripts; keep only CAD-relevant tooling
+scripts/*
+!scripts/bootstrap-macos.sh
+!scripts/install-freecad.sh
+
+# Test workspaces
+/tmp/
+
+# Coverage
+coverage/
+.nyc_output/

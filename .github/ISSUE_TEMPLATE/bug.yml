@@ -1,0 +1,40 @@
+name: Bug
+description: Something is wrong in the CAD service, a backend, or a transport.
+title: "[bug] "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: Public operations are backend-neutral (`create_hole`, not `PartDesign::Hole`). Include the operation JSON when you can.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: What you expected
+    validations:
+      required: true
+  - type: dropdown
+    id: transport
+    attributes:
+      label: Transport
+      options: [MCP, HTTP, CLI, Python, Studio, Worker]
+  - type: input
+    id: versions
+    attributes:
+      label: Schema / MCP / service versions
+      placeholder: "schema 2 / MCP 5.0.0 / cad-service 0.5.5"
+  - type: dropdown
+    id: os
+    attributes:
+      label: OS
+      options: ["macOS Apple Silicon", "macOS Intel", "Linux", "Windows (unsupported)", "Unknown"]
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs / error envelope
+      description: Paste the structured error (`error`, `code`, `suggestion`). Do not paste secrets.

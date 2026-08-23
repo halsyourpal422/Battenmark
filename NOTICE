@@ -1,0 +1,33 @@
+Battenmark
+Copyright 2026 Battenmark contributors
+
+Battenmark is open, backend-neutral CAD infrastructure for AI agents and
+software. "AgentCAD" appears as a historical module/CLI/API prefix
+(AgentCadService, AGENTCAD_* environment variables, agentcad-mcp, ...) and is
+retained as a compatibility surface; it is not a separate product.
+
+Licensing (technical recommendation, not legal advice)
+-----------------------------------------------------
+The TypeScript/Node service, HTTP/MCP/CLI transports, and tests
+are intended to be licensed under Apache License 2.0 (see LICENSE).
+
+This software *invokes* FreeCAD/OpenCascade as a separate process over
+stdin/stdout. It does not statically or dynamically link libOCC into the
+Node process.
+
+FreeCAD is licensed under LGPL-2.1-or-later.
+OpenCascade Technology (OCCT) is licensed under LGPL-2.1-or-later with
+exceptions as published by Open Cascade SAS.
+
+The Python files under freecad-worker/ are FreeCADCmd-hosted scripts
+(macros) that run *inside* the FreeCAD process. Treat them as companion
+code that must remain compatible with FreeCAD's LGPL terms. They are not
+a second CAD kernel.
+
+JSCAD (@jscad/modeling) is used for interactive preview meshes only.
+See that package's license.
+
+npm dependencies retain their own licenses (MIT, Apache-2.0, ISC, and
+others). A redistribution must preserve those notices.
+
+This NOTICE does not grant trademark rights in any product name.

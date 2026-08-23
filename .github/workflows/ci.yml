@@ -1,0 +1,162 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck:
+    name: typecheck
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npx tsc --noEmit
+
+  # Shared FreeCAD bootstrap for Linux jobs. Uses the repository's own
+  # installer (official 1.0.2 x86_64 AppImage, extracted without FUSE), which
+  # matches the validated Linux headless baseline. Discovery then finds
+  # /opt/freecad/squashfs-root/AppRun automatically.
+  freecad-linux:
+    name: install-freecad (linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh scripts/install-freecad.sh
+      - run: |
+          CMD="$(python3 -c "import json;print(json.load(open('/opt/freecad/ok.json'))['cmd'])")"
+          echo "FreeCADCmd: $CMD"
+
+  unit-core:
+    name: schema / discovery / registry / parametric / selectors / conformance
+    runs-on: ubuntu-latest
+    needs: [typecheck]
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: sh scripts/install-freecad.sh
+      - run: |
+          set -e
+          echo "== test:schema =="
+          npm run --silent test:schema
+          echo "== test:discover =="
+          npm run --silent test:discover
+          echo "== test:backend-registry =="
+          npm run --silent test:backend-registry
+          echo "== test:parametric =="
+          npm run --silent test:parametric
+          echo "== test:selectors =="
+          npm run --silent test:selectors
+          echo "== test:conformance =="
+          npm run --silent test:conformance
+
+  geometry-kernel:
+    name: cad / holes / patterns / enclosure / freecad-worker / parity
+    runs-on: ubuntu-latest
+    needs: [freecad-linux]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: sh scripts/install-freecad.sh
+      # Golden model gate: test:parity asserts the 80x50x12 box at 48,000 mm^3
+      # through both JSCAD and FreeCAD.
+      - run: |
+          set -e
+          echo "== test:cad =="
+          npm run --silent test:cad
+          echo "== test:holes =="
+          npm run --silent test:holes
+          echo "== test:patterns =="
+          npm run --silent test:patterns
+          echo "== test:semantic-enclosure =="
+          npm run --silent test:semantic-enclosure
+          echo "== test:freecad =="
+          npm run --silent test:freecad
+          echo "== test:parity =="
+          npm run --silent test:parity
+
+  transports:
+    name: service / persistence / http / cli / mcp / transport-parity
+    runs-on: ubuntu-latest
+    needs: [freecad-linux]
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: sh scripts/install-freecad.sh
+      - run: |
+          set -e
+          echo "== test:service =="
+          npm run --silent test:service
+          echo "== test:persistence =="
+          npm run --silent test:persistence
+          echo "== test:http =="
+          npm run --silent test:http
+          echo "== test:cli =="
+          npm run --silent test:cli
+          echo "== test:mcp:stdio =="
+          npm run --silent test:mcp:stdio
+          echo "== test:mcp:http =="
+          npm run --silent test:mcp:http
+          echo "== test:transport-parity =="
+          npm run --silent test:transport-parity
+
+  worker-python:
+    name: freecad worker python tests
+    runs-on: ubuntu-latest
+    needs: [freecad-linux]
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh scripts/install-freecad.sh
+      - run: python3 -m pytest freecad-worker/tests -q
+
+  # Supplemental only. GitHub-hosted macOS runners are NOT the authoritative
+  # Apple Silicon environment; the Tier-1 hardware proof was executed on a real
+  # arm64 Mac (macOS 26.6.2, FreeCAD 1.1.3) — see docs/MACOS.md. This job does
+  # not install FreeCAD and therefore exercises macOS bundle-discovery logic
+  # against documented candidate paths only (unit-level, mocked contexts).
+  macos-discovery:
+    name: macos discovery (hosted runner, supplemental)
+    runs-on: macos-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: |
+          set -e
+          echo "== test:discover (mocked contexts; hosted macOS is supplemental) =="
+          npm run --silent test:discover
