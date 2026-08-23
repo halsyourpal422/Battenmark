@@ -138,6 +138,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - run: sh scripts/install-freecad.sh
+      - run: python3 -m pip install --quiet pytest
       - run: python3 -m pytest freecad-worker/tests -q
 
   # Supplemental only. GitHub-hosted macOS runners are NOT the authoritative
