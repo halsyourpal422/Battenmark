@@ -54,6 +54,7 @@ ALLOWED_OPS = {
     "import",
     "query",
     "shutdown",
+ "assembly",
 }
 
 DEV_PYTHON = os.environ.get("AGENTCAD_FREECAD_DEV_PYTHON") == "1"
@@ -66,6 +67,9 @@ SESSION: dict[str, Any] = {
     "issues": [],
     "document_name": None,
 }
+
+
+import assembly
 
 
 def emit(payload: dict[str, Any]) -> None:
@@ -239,6 +243,28 @@ def handle(req: dict[str, Any]) -> dict[str, Any]:
         result["issues"] = list(SESSION.get("issues") or []) + list(result.get("issues") or [])
         result["valid"] = not any(i.get("severity") == "error" for i in result["issues"])
         return {"ok": result["valid"], "result": result}
+
+    if op == "assembly":
+        args = req.get("arguments") or {}
+        mode = args.get("mode") or "inspect"
+        payload = {
+            "assembly": args.get("assembly"),
+            "definitions": args.get("definitions"),
+            "placements": args.get("placements"),
+        }
+        try:
+            if mode == "inspect":
+                built = assembly.build_assembly(payload)
+                return {"ok": True, "result": built["result"]}
+            path = args.get("path")
+            fmt = args.get("format")
+            if not path or fmt not in ("fcstd", "step"):
+                return {"ok": False, "error": _err("UNSUPPORTED_FORMAT", "assembly export needs fcstd|step and a path.")}
+            out = assembly.export_assembly(payload, fmt, path)
+            return {"ok": True, "result": out["result"]}
+        except Exception as err:
+            log("assembly failed", error=str(err))
+            return {"ok": False, "error": _err("RECOMPUTE_FAILED", str(err))}
 
     if op == "export":
         args = req.get("arguments") or {}

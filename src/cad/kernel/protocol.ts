@@ -9,6 +9,7 @@ export type WorkerOperation =
   | "export"
   | "import"
   | "query"
+  | "assembly"
   | "shutdown";
 
 export interface WorkerRequest {

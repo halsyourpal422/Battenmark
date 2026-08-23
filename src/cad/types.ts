@@ -291,6 +291,97 @@ export interface CadDocument {
   revisions: Revision[];
   currentRevisionId: string | null;
   geometryRefs?: GeometryRef[];
+  /** Phase 6: optional additive assembly state. Absent in pre-assembly documents. */
+  assemblies?: Assembly[];
+}
+
+// ---------------------------------------------------------------------------
+// Assemblies (Phase 6) — backend-neutral mechanical intent.
+//
+// A ComponentDefinition owns reusable design content (a snapshot of bodies,
+// features and parameters). A ComponentInstance places one definition via a
+// canonical rigid transform. Instance ids are stable identity; array position
+// is not. Constraints reference geometry through semantic, instance-qualified
+// references — never raw backend topology indexes.
+// ---------------------------------------------------------------------------
+
+export interface AssemblyQuaternion {
+  x: number;
+  y: number;
+  z: number;
+  w: number;
+}
+
+/** Canonical rigid transform: millimetre translation + unit quaternion (scalar-last). */
+export interface AssemblyTransform {
+  translation: Vec3;
+  rotation: AssemblyQuaternion;
+}
+
+export type ComponentSource =
+  | { kind: "native"; note?: string }
+  | {
+      kind: "imported";
+      format: "step" | "fcstd" | "iges" | "stl" | "obj" | "3mf";
+      sourcePath: string;
+      /** Imported geometry has no Battenmark parametric history. Always surfaced honestly. */
+      note: string;
+    };
+
+export interface ComponentDefinition {
+  id: string;
+  name: string;
+  source: ComponentSource;
+  /** Native snapshot: the definition's own parametric content. */
+  parameters: Parameter[];
+  bodies: Body[];
+  features: Feature[];
+}
+
+export interface ComponentInstance {
+  id: string;
+  componentId: string;
+  transform: AssemblyTransform;
+  /** Grounded instance: the assembly reference frame. */
+  fixed: boolean;
+}
+
+/** Instance-qualified semantic reference: `instanceId` + component-local selector. */
+export interface AssemblyRef {
+  instance: string;
+  /** Face name, semantic selector string, or structured selector. */
+  face?: FaceName | GeometrySelector;
+  /** Axis intent: named coordinate axis, or selector resolving to cylindrical geometry. */
+  axis?: AxisName | GeometrySelector;
+}
+
+export type AssemblyConstraintKind =
+  | "fixed"
+  | "mate_faces"
+  | "align_axes"
+  | "concentric"
+  | "distance"
+  | "angle";
+
+export interface AssemblyConstraint {
+  id: string;
+  kind: AssemblyConstraintKind;
+  /** One ref for `fixed`, two otherwise. */
+  refs: [AssemblyRef] | [AssemblyRef, AssemblyRef];
+  /** mate_faces / distance: gap along the anchor normal, in mm. */
+  offsetMm?: number;
+  /** distance: required separation in mm. */
+  distanceMm?: number;
+  /** angle: dihedral angle in explicit degrees. */
+  angleDeg?: number;
+}
+
+export interface Assembly {
+  id: string;
+  name: string;
+  definitions: ComponentDefinition[];
+  instances: ComponentInstance[];
+  constraints: AssemblyConstraint[];
 }
 
 export type CadErrorCode =
@@ -354,7 +445,17 @@ export type CadErrorCode =
   | "BACKEND_UNAVAILABLE"
   | "BACKEND_NOT_FOUND"
   | "BACKEND_ROLE_CONFLICT"
-  | "BACKEND_REGISTRATION_CONFLICT";
+  | "BACKEND_REGISTRATION_CONFLICT"
+  | "ASSEMBLY_NOT_FOUND"
+  | "COMPONENT_NOT_FOUND"
+  | "INSTANCE_NOT_FOUND"
+  | "CONSTRAINT_NOT_FOUND"
+  | "INVALID_ASSEMBLY_REFERENCE"
+  | "CONSTRAINT_CONFLICT"
+  | "CONSTRAINT_UNSUPPORTED"
+  | "ASSEMBLY_UNSOLVED"
+  | "ASSEMBLY_CYCLE"
+  | "ASSEMBLY_LIMIT_EXCEEDED";
 
 
 export interface CadErrorBody {
@@ -629,4 +730,70 @@ export type Operation =
       format?: string;
       name?: string;
       body_id?: string;
-    };
+    }
+  | { op: "create_assembly"; name?: string; assembly_id?: string }
+  | {
+      op: "define_component";
+      assembly_id: string;
+      component_id?: string;
+      name?: string;
+      /** Native snapshot scope. Default: all bodies/features/parameters of the host document. */
+      include?: { body_ids?: string[] };
+      source_format?: "step" | "fcstd";
+      source_path?: string;
+    }
+  | {
+      op: "create_instance";
+      assembly_id: string;
+      component_id: string;
+      instance_id?: string;
+      position?: Partial<Vec3Expr>;
+      rotation_euler_xyz_deg?: { x: Dim; y: Dim; z: Dim };
+    }
+  | { op: "fix_instance"; assembly_id: string; instance_id: string }
+  | {
+      op: "set_instance_transform";
+      assembly_id: string;
+      instance_id: string;
+      position?: Partial<Vec3Expr>;
+      rotation_euler_xyz_deg?: { x: Dim; y: Dim; z: Dim };
+    }
+  | { op: "set_definition_parameter"; assembly_id: string; component_id: string; name: string; value: number }
+  | {
+      op: "mate_faces";
+      assembly_id: string;
+      a_instance: string;
+      a_face: FaceName | GeometrySelector;
+      b_instance: string;
+      b_face: FaceName | GeometrySelector;
+      offset_mm?: number;
+    }
+  | {
+      op: "align_axes";
+      assembly_id: string;
+      a_instance: string;
+      a_axis: AxisName | GeometrySelector;
+      b_instance: string;
+      b_axis: AxisName | GeometrySelector;
+      concentric?: boolean;
+    }
+  | {
+      op: "set_distance";
+      assembly_id: string;
+      a_instance: string;
+      a_ref: FaceName | GeometrySelector;
+      b_instance: string;
+      b_ref: FaceName | GeometrySelector;
+      distance_mm: number;
+    }
+  | {
+      op: "set_angle";
+      assembly_id: string;
+      a_instance: string;
+      a_ref: FaceName | GeometrySelector;
+      b_instance: string;
+      b_ref: FaceName | GeometrySelector;
+      angle_deg: number;
+    }
+  | { op: "remove_constraint"; assembly_id: string; constraint_id: string }
+  | { op: "inspect_assembly"; assembly_id: string };

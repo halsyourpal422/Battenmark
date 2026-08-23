@@ -17,6 +17,7 @@ import {
 } from "../schema";
 import { getBackendRegistry, resetBackendRegistry } from "../backend/registry";
 import { requiredCapabilitiesFor } from "../backend/capabilities";
+import { buildAssemblyAuthoritative, exportAssemblyAuthoritative } from "../kernel/assembly.server";
 import { withProjectLock } from "./lock";
 import { okResult, failResult, fromToolResult, asServiceError, type ServiceResult } from "./result";
 import { serviceLog } from "./log";
@@ -272,6 +273,7 @@ export class AgentCadService {
               view: typeof args.view === "string" ? args.view : undefined,
               width: typeof args.width === "number" ? args.width : undefined,
               height: typeof args.height === "number" ? args.height : undefined,
+              assemblyId: typeof args.assembly_id === "string" ? args.assembly_id : undefined,
             });
           }
           if (name === "list_previews") return this.listPreviewsUnlocked(project);
@@ -284,6 +286,21 @@ export class AgentCadService {
               name: typeof args.name === "string" ? args.name : undefined,
               body_id: typeof args.body_id === "string" ? args.body_id : undefined,
             });
+          }
+          if (name === "rebuild_assembly") {
+            return finish(
+              await this.rebuildAssemblyUnlocked(project, String(args.assembly_id ?? "")),
+            );
+          }
+          if (name === "export_assembly") {
+            const fmt = args.format === "step" ? "step" : "fcstd";
+            return finish(
+              await this.exportAssemblyUnlocked(
+                project,
+                String(args.assembly_id ?? ""),
+                fmt,
+              ),
+            );
           }
           if (name === "validate") {
             const kernel = args.kernel === "freecad" ? "freecad" : "jscad";
@@ -737,6 +754,32 @@ export class AgentCadService {
     }
   }
 
+  async rebuildAssemblyUnlocked(project: CadProject, assemblyId: string): Promise<ServiceResult> {
+    const inspection = await buildAssemblyAuthoritative(project.document, assemblyId);
+    return okResult("rebuild_assembly", { ...handles(project), data: inspection });
+  }
+
+  async exportAssemblyUnlocked(project: CadProject, assemblyId: string, format: "fcstd" | "step"): Promise<ServiceResult> {
+    const exported = await exportAssemblyAuthoritative(project.document, assemblyId, format);
+    const data = exported as Record<string, unknown>;
+    const inner = (data["result"] ?? data) as Record<string, unknown>;
+    return okResult("export_assembly", {
+      ...handles(project),
+      data: {
+        format: inner["format"],
+        path: inner["path"],
+        bytes: inner["bytes"],
+        objects: inner["objects"],
+        inspection: inner["inspection"],
+        note:
+          format === "step"
+            ? "Placed solids with instance labels; structured product hierarchy depends on OCC XCAF behaviour."
+            : "Native App::Part hierarchy with per-instance placements.",
+      },
+      project_id: project.meta.project_id,
+    });
+  }
+
   async kernelStatus(): Promise<ServiceResult> {
     const { jscadKernel } = await import("../kernel/jscad");
     const preview = await jscadKernel.available();
@@ -813,13 +856,13 @@ export class AgentCadService {
 
   renderPreviewUnlocked(
     project: CadProject,
-    opts: { view?: string; width?: number; height?: number } = {},
+    opts: { view?: string; width?: number; height?: number; assemblyId?: string } = {},
   ): ServiceResult {
     try {
       const rendered = renderDocumentPreview(project.document, opts.view ?? "isometric", {
         width: opts.width,
         height: opts.height,
-      });
+      }, { assemblyId: opts.assemblyId });
       const views = rendered.map((item) => {
         const filename = `${item.view}.png`;
         const previewPath = workspacePath(project.meta.slug, "previews", filename);
