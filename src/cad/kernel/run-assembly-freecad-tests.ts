@@ -301,10 +301,20 @@ async function main() {
     const rebuilt = await svc.executeTool("rebuild_assembly", { project_id: pid, assembly_id: "link_asm", use_links: true });
     const ms = Date.now() - t0;
     assert(rebuilt.ok, `rebuild failed: ${JSON.stringify(rebuilt.error ?? rebuilt).slice(0, 400)}`);
-    const inst = (rebuilt.data as Record<string, any>).instances as Array<Record<string, any>>;
+    const data = rebuilt.data as Record<string, any>;
+    const inst = data.instances as Array<Record<string, any>>;
     assert(inst.length === 100, `instances ${inst.length}`);
     assert(inst.every((i) => i.valid && approx(i.volume_mm3, 48000, 1)), `volume/validity drift: ${JSON.stringify(inst.find((i) => !i.valid || !approx(i.volume_mm3, 48000, 1)))}`);
-    return `100 linked instances rebuilt in ${ms} ms, all V=48000`;
+    // Blocker E proof: instances must BE App::Link objects sharing ONE definition.
+    assert(data.representation === "app_link", `representation ${data.representation}`);
+    assert(data.representation_counts.links === 100, `links ${data.representation_counts.links}`);
+    assert(data.representation_counts.definitions === 1, `definitions ${data.representation_counts.definitions}`);
+    assert(inst.every((i) => i.representation === "app_link" && i.linked_definition), "per-instance link proof failed");
+    // Fallback visibility: same assembly without use_links must report shape_copy.
+    const copies = await svc.executeTool("rebuild_assembly", { project_id: pid, assembly_id: "link_asm" });
+    assert(copies.ok, JSON.stringify(copies.error));
+    assert((copies.data as Record<string, any>).representation === "shape_copy", "fallback not visible");
+    return `100 App::Link instances (defs=1), rebuild ${ms} ms, fallback path verified`;
   });
 
   try {

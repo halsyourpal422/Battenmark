@@ -28,7 +28,7 @@ design; see docs/VERSIONING.md.
 
 ## Unreleased — Phase 6.1 (constraint hardening)
 
-- `set_parallel` / `set_perpendicular` constraints (minimal deterministic rotation; translation preserved).
+- `set_parallel` / `set_perpendicular` constraints (planar faces; minimal deterministic rotation; translation preserved).
 - Rank-based rigid-body DOF diagnostics: per-instance remaining freedoms with axis labels,
   `constraint_state` (fully_constrained / underconstrained / conflicted / unsolved),
   per-constraint `removed_dof` and post-solve residuals.

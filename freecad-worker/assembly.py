@@ -228,6 +228,7 @@ def build_assembly(payload: dict[str, Any]) -> dict[str, Any]:
 
         made_link = False
         feature = None
+        representation = "shape_copy"
         if link_ok:
             try:
                 if cid not in def_features:
@@ -241,6 +242,7 @@ def build_assembly(payload: dict[str, Any]) -> dict[str, Any]:
                 feature.LinkedObject = def_features[cid]
                 part.addObject(feature)
                 made_link = True
+                representation = "app_link"
             except Exception:
                 link_ok = False
                 if feature is not None:
@@ -274,6 +276,8 @@ def build_assembly(payload: dict[str, Any]) -> dict[str, Any]:
                 {"min": {"x": bb.XMin, "y": bb.YMin, "z": bb.ZMin},
                  "max": {"x": bb.XMax, "y": bb.YMax, "z": bb.ZMax}} if bb else None
             ),
+            "representation": representation,
+            "linked_definition": def_features[cid].Name if made_link else None,
             "transform": placement,
         })
 
@@ -292,7 +296,12 @@ def build_assembly(payload: dict[str, Any]) -> dict[str, Any]:
         ),
         "issues": issues,
         "valid": not any(i["severity"] == "error" for i in issues),
-        "representation": "App::Part + Part::Feature per instance (Placement carries the transform)",
+        "representation": ("app_link" if use_links and link_ok else "shape_copy"),
+        "representation_counts": {
+            "links": sum(1 for r in instance_reports if r.get("representation") == "app_link"),
+            "copies": sum(1 for r in instance_reports if r.get("representation") == "shape_copy"),
+            "definitions": len(def_features),
+        },
     }
     return {"result": result, "session_doc": doc, "part": part}
 

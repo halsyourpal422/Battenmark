@@ -380,15 +380,22 @@ export function inspectAssembly(
         features: d.features.length,
         parameters: d.parameters.map((p) => p.name),
       })),
-      instances: asm.instances.map((i) => ({
-        id: i.id,
-        component_id: i.componentId,
-        fixed: i.fixed,
-        transform: solved.placements[i.id],
-        remaining_dof: solved.dof.find((d) => d.instanceId === i.id)?.remainingDof ?? null,
-      })),
+      instances: asm.instances.map((i) => {
+        const dofRow = solved.dof.find((d) => d.instanceId === i.id);
+        return {
+          id: i.id,
+          component_id: i.componentId,
+          fixed: i.fixed,
+          transform: solved.placements[i.id],
+          remaining_dof: dofRow?.remainingDof ?? null,
+          free_translation: dofRow?.freeTranslation ?? [],
+          free_rotation: dofRow?.freeRotation ?? [],
+        };
+      }),
       constraints: solved.constraints,
       solved: solved.solved,
+      constraint_state: solved.constraintState,
+      remaining_dof_total: solved.remainingDofTotal,
       world_bbox: solved.worldBBox,
       counts: {
         definitions: asm.definitions.length,
