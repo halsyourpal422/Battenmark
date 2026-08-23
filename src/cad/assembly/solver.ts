@@ -90,35 +90,72 @@ export type AssemblyConstraintState = "fully_constrained" | "underconstrained" |
  * axis-aligned fixtures, an honest linearization otherwise. See
  * docs/adr/0002-assembly-dof-model.md.
  */
-function constraintRows(c: AssemblyConstraint, frames: { a: ResolvedFrame; b: ResolvedFrame }): number[][] {
+/**
+ * Linearized rigid-body constraint rows in the solved world frame.
+ *
+ * Every row is exactly six elements: [Tx, Ty, Tz, Rx, Ry, Rz].
+ * translationRow restricts translational columns only; rotationRow restricts
+ * rotational columns only. The distinction is deliberate and load-bearing —
+ * see docs/adr/0002-assembly-dof-model.md.
+ */
+export function translationRow(v: Vec3): number[] {
+  return [v.x, v.y, v.z, 0, 0, 0];
+}
+
+export function rotationRow(v: Vec3): number[] {
+  return [0, 0, 0, v.x, v.y, v.z];
+}
+
+export function constraintRows(c: AssemblyConstraint, frames: { a: ResolvedFrame; b: ResolvedFrame }): number[][] {
   const rows: number[][] = [];
-  const tRow = (v: Vec3) => [v.x, v.y, v.z];
   switch (c.kind) {
-    case "fixed": return [[1,0,0],[0,1,0],[0,0,1],[1,0,0],[0,1,0],[0,0,1]];
-    case "mate_faces": case "distance": {
-      const n = frames.a.normal ?? { x: 0, y: 0, z: 1 };
-      rows.push(tRow(n));
-      if (c.kind === "mate_faces") {
-        const u = orthogonalPair(n);
-        rows.push(tRow(u.first), tRow(u.second));
-      }
-      return rows;
+    case "fixed":
+      return [
+        translationRow({ x: 1, y: 0, z: 0 }),
+        translationRow({ x: 0, y: 1, z: 0 }),
+        translationRow({ x: 0, y: 0, z: 1 }),
+        rotationRow({ x: 1, y: 0, z: 0 }),
+        rotationRow({ x: 0, y: 1, z: 0 }),
+        rotationRow({ x: 0, y: 0, z: 1 }),
+      ];
+    case "mate_faces": {
+      // Plane coincidence: one translation along the normal, two rotations
+      // that would tilt the normal. In-plane slide and spin stay free.
+      const n = normalizeVec(frames.a.normal ?? { x: 0, y: 0, z: 1 });
+      const { first, second } = orthogonalPair(n);
+      return [translationRow(n), rotationRow(first), rotationRow(second)];
     }
-    case "align_axes": case "concentric": case "parallel": {
+    case "distance": {
+      // Signed separation along the anchor normal: one translational row.
+      const n = normalizeVec(frames.a.normal ?? { x: 0, y: 0, z: 1 });
+      return [translationRow(n)];
+    }
+    case "align_axes": case "parallel": {
+      // Orientation-only: remove the two tilts of the common direction;
+      // spin about it stays free. No translational row (translation preserved).
       const d = normalizeVec(frames.a.direction ?? frames.a.normal ?? { x: 0, y: 0, z: 1 });
       const { first, second } = orthogonalPair(d);
-      rows.push(tRow(first), tRow(second));
-      if (c.kind === "concentric") {
-        rows.push([first.x, first.y, first.z], [second.x, second.y, second.z]);
-      }
-      return rows;
+      return [rotationRow(first), rotationRow(second)];
+    }
+    case "concentric": {
+      // Axis-line coincidence: two tilts + two transverse translations;
+      // axial slide and spin remain free.
+      const d = normalizeVec(frames.a.direction ?? frames.a.normal ?? { x: 0, y: 0, z: 1 });
+      const { first, second } = orthogonalPair(d);
+      return [rotationRow(first), rotationRow(second), translationRow(first), translationRow(second)];
     }
     case "angle": case "perpendicular": {
-      const k = normalizeVec(crossVec(frames.b.normal ?? {x:0,y:0,z:1}, frames.a.normal ?? {x:0,y:1,z:0}));
+      // One scalar angular relationship: a single rotational row along the
+      // effective relative-rotation axis. Linearized approximation.
+      const k = crossVec(
+        frames.b.normal ?? frames.b.direction ?? { x: 0, y: 0, z: 1 },
+        frames.a.normal ?? frames.a.direction ?? { x: 0, y: 1, z: 0 },
+      );
       if (vecLen(k) < EPS) return [];
-      return [tRow(k)];
+      return [rotationRow(normalizeVec(k))];
     }
-    default: return [];
+    default:
+      return [];
   }
 }
 
@@ -464,10 +501,11 @@ function refLabel(r: AssemblyRef): string {
   return `face:${typeof r.face === "string" ? r.face : stableStringify(r.face)}`;
 }
 
-/** Centralized solver/inspection tolerances (mm and degrees). */
+/** Centralized solver/inspection tolerances. Units are explicit per field. */
 export const SOLVER_TOLERANCES = {
   distanceMm: 1e-6,
   angleDeg: 1e-4,
+  orientationDot: 1e-9,
   interferenceVolumeMm3: 1e-6,
 };
 
@@ -702,39 +740,51 @@ function meshWorldBBox(doc: CadDocument, asm: Assembly, placements: Record<strin
   return min && max ? { min, max } : null;
 }
 
-/** Post-solve residuals per applied constraint (diagnostic + validation). */
-function residualOf(asm: Assembly, c: AssemblyConstraint): number {
+/** Unit-consistent residuals per applied constraint (diagnostic + enforcement). */
+interface Residual { distance_mm?: number; angle_deg?: number; axis_offset_mm?: number; axis_angle_deg?: number }
+function residualOf(asm: Assembly, c: AssemblyConstraint): Residual {
   const { a, b } = worldFrames(asm, c);
+  const deg = (dot: number) => Math.acos(Math.max(-1, Math.min(1, dot))) * (180 / Math.PI);
   switch (c.kind) {
     case "mate_faces": case "distance": {
-      const n = a.normal ?? { x: 0, y: 0, z: 1 };
+      const n = normalizeVec(a.normal ?? { x: 0, y: 0, z: 1 });
       const gap = dotVec(subVec(a.point, b.point), n);
       const want = c.kind === "distance" ? -(c.distanceMm ?? 0) : -(c.offsetMm ?? 0);
-      return Math.abs(gap - want);
+      return { distance_mm: Math.abs(gap - want) };
     }
     case "parallel": {
-      const d = Math.abs(dotVec(normalizeVec(b.direction ?? b.normal ?? {x:0,y:0,z:1}), normalizeVec(a.direction ?? a.normal ?? {x:0,y:0,z:1})));
-      return Math.abs(1 - d);
+      const d = dotVec(normalizeVec(b.direction ?? b.normal ?? {x:0,y:0,z:1}), normalizeVec(a.direction ?? a.normal ?? {x:0,y:0,z:1}));
+      return { angle_deg: Math.abs(deg(Math.abs(d))) };
     }
     case "perpendicular": {
-      return Math.abs(dotVec(normalizeVec(b.direction ?? b.normal ?? {x:0,y:0,z:1}), normalizeVec(a.direction ?? a.normal ?? {x:0,y:1,z:1})));
+      const d = dotVec(normalizeVec(b.direction ?? b.normal ?? {x:0,y:0,z:1}), normalizeVec(a.direction ?? a.normal ?? {x:0,y:1,z:0}));
+      return { angle_deg: Math.abs(deg(d) - 90) };
     }
     case "concentric": {
       const da = normalizeVec(a.direction ?? a.normal ?? {x:0,y:0,z:1});
       const db = normalizeVec(b.direction ?? b.normal ?? {x:0,y:0,z:1});
       const off = subVec(b.point, a.point);
       const perp = subVec(off, scaleVec(da, dotVec(off, da)));
-      return vecLen(perp) + Math.abs(1 - Math.abs(dotVec(da, db)));
+      return { axis_offset_mm: vecLen(perp), axis_angle_deg: deg(Math.abs(dotVec(da, db))) };
     }
     case "angle": {
       const na = normalizeVec(a.normal ?? {x:0,y:0,z:1});
       const nb = normalizeVec(b.normal ?? {x:0,y:1,z:0});
-      const cur = Math.acos(Math.max(-1, Math.min(1, dotVec(na, nb)))) * (180 / Math.PI);
+      const cur = deg(dotVec(na, nb));
       let delta = Math.abs(cur - (c.angleDeg ?? 90));
-      return Math.min(delta, 360 - delta);
+      delta = Math.min(delta, 360 - delta);
+      return { angle_deg: delta };
     }
-    default: return 0;
+    default: return {};
   }
+}
+
+function residualWithinTolerance(r: Residual): boolean {
+  if ((r.distance_mm ?? 0) > SOLVER_TOLERANCES.distanceMm) return false;
+  if ((r.angle_deg ?? 0) > SOLVER_TOLERANCES.angleDeg) return false;
+  if ((r.axis_offset_mm ?? 0) > SOLVER_TOLERANCES.distanceMm) return false;
+  if ((r.axis_angle_deg ?? 0) > SOLVER_TOLERANCES.angleDeg) return false;
+  return true;
 }
 
 /** Solve an assembly deterministically and report honest constraint/DOF state. */
@@ -798,9 +848,14 @@ export function solveAssembly(doc: CadDocument, assemblyId: string): SolvedAssem
     const rows: number[][] = [];
     const removedByConstraint = new Map<string, number>();
     let beforeRank = 0;
-    const ordered = asm.constraints.filter(
-      (c) => reports.get(c.id)?.moved === inst.id && reports.get(c.id)?.status === "applied",
-    );
+    // Mechanically active constraints: applied AND redundant-but-satisfied
+    // relationships still restrict future motion, so they contribute rows.
+    // Deferred/conflicted constraints do not.
+    const ordered = asm.constraints.filter((c) => {
+      const rep = reports.get(c.id);
+      if (!rep || rep.moved !== inst.id) return false;
+      return rep.status === "applied" || rep.status === "redundant";
+    });
     const rowCache = new Map<string, number[][]>();
     for (const c of ordered) {
       const frames = worldFrames(asm, c);
@@ -818,7 +873,7 @@ export function solveAssembly(doc: CadDocument, assemblyId: string): SolvedAssem
     for (const c of ordered) {
       const rep = reports.get(c.id)!;
       rep.removedDof = removedByConstraint.get(c.id) ?? 0;
-      rep.residual = residualOf(asm, c).toFixed(9);
+      rep.residual = residualOf(asm, c) as unknown as string;
     }
     dof.push({
       instanceId: inst.id,
@@ -828,6 +883,18 @@ export function solveAssembly(doc: CadDocument, assemblyId: string): SolvedAssem
     });
   }
 
+  // Post-solve residual validation: an applied relationship that violates
+  // tolerance invalidates the solve (unit-consistent residuals only).
+  for (const c of asm.constraints) {
+    const rep = reports.get(c.id);
+    if (!rep || rep.status !== "applied") continue;
+    const r = residualOf(asm, c);
+    rep.residual = r as unknown as string;
+    if (!residualWithinTolerance(r)) {
+      rep.status = "deferred";
+      rep.reason = `residual out of tolerance: ${JSON.stringify(r)}`;
+    }
+  }
   const deferred = [...reports.values()].filter((r) => r.status === "deferred");
   const worldBBox = meshWorldBBox(doc, asm, placements);
   const totalRemaining = dof.reduce((acc, d) => acc + d.remainingDof, 0);

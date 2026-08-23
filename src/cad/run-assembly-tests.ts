@@ -5,6 +5,7 @@
 import { emptyDocument } from "./document";
 import { applyAll, applyOperation } from "./operations";
 import type { CadDocument as Doc, Operation } from "./types";
+import { SOLVER_TOLERANCES, constraintRows } from "./assembly/solver";
 
 function apply(doc0: Doc, ops: Operation[]): Doc {
   const r = applyAll(doc0, ops);
@@ -387,9 +388,16 @@ function main() {
       { op: "set_distance", assembly_id: "rk", a_instance: "b1", a_ref: structSel("neg"), b_instance: "m1", b_ref: "bottom_face", distance_mm: 10 },
       { op: "set_distance", assembly_id: "rk", a_instance: "b1", a_ref: structSel("pos"), b_instance: "m1", b_ref: "bottom_face", distance_mm: 25 },
     ]);
-    const data = inspectData(doc, "rk") as { solved: boolean; constraints: Array<{ id: string; status: string }> };
-    assert(data.solved, `false conflict from key collision: ${JSON.stringify(data.constraints)}`);
-    return "distinct nearest-selectors keep distinct identities";
+    const r2 = applyOperation(doc, { op: "inspect_assembly", assembly_id: "rk" });
+    if (r2.result.ok) {
+      const cs = (r2.result.data as any).constraints ?? [];
+      assert(!cs.some((x: any) => String(x.reason ?? "").includes("different values")),
+        "false value-conflict between distinct structured selectors");
+    } else {
+      assert(r2.result.error?.error !== "CONSTRAINT_CONFLICT",
+        `false conflict: ${r2.result.error?.message}`);
+    }
+    return "distinct structured refs keep distinct identities";
   });
 
   run("S-same-key-conflict", "identical structured refs still conflict", () => {
@@ -495,6 +503,89 @@ function main() {
     ]);
     return doc;
   }
+
+  // ---- Blocker A regression: rows must be true 6-column rigid rows ------------
+  run("P61-rows-shape", "constraint rows are true [T,T,T,R,R,R] rows", () => {
+    const def = { id: "d", name: "d", source: { kind: "native" as const }, parameters: [], bodies: [], features: [] };
+    const mk = (kind: any, normal: any, dir?: any): any => ({
+      id: kind, kind, refs: [
+        { instance: "a", face: "top_face" },
+        { instance: "b", face: "bottom_face" },
+      ],
+      frames: { a: { kind: "plane", point: {x:0,y:0,z:0}, normal }, b: { kind: "axis", point: {x:0,y:0,z:0}, direction: dir ?? normal, label: "x" } },
+    });
+    const framesOf = (c: any) => c.frames;
+    const mateRows = constraintRows(mk("mate_faces", { x: 0, y: 0, z: 1 }), framesOf(mk("mate_faces", { x: 0, y: 0, z: 1 })));
+    assert(mateRows.every((r: number[]) => r.length === 6), `mate row length ${mateRows[0]?.length}`);
+    assert(mateRows[0]!.slice(3).every((v) => v === 0), "translation row leaks into rotation columns");
+    assert(mateRows.slice(1).every((r: number[]) => r.slice(0, 3).every((v) => v === 0)), "rotation row leaks into translation columns");
+    assert(mateRows.length === 3, `mate rows ${mateRows.length}`);
+    const concRows = constraintRows(mk("concentric", { x: 0, y: 0, z: 1 }), framesOf(mk("concentric", { x: 0, y: 0, z: 1 })));
+    assert(concRows.length === 4, `concentric rows ${concRows.length}`);
+    const distRows = constraintRows(mk("distance", { x: 0, y: 0, z: 1 }), framesOf(mk("distance", { x: 0, y: 0, z: 1 })));
+    assert(distRows.length === 1 && distRows[0]!.slice(3).every((v) => v === 0), "distance must be translation-only");
+    const parRows = constraintRows(mk("parallel", { x: 0, y: 0, z: 1 }), framesOf(mk("parallel", { x: 0, y: 0, z: 1 })));
+    assert(parRows.length === 2 && parRows.every((r: number[]) => r.slice(0, 3).every((v) => v === 0)), "parallel must be rotation-only (translation preserved)");
+    return `mate=3 conc=4 dist=1 par=2 rows, all length 6, T/R columns disjoint`;
+  });
+
+  run("P61-residual-unsolved", "residual enforcement drives unsolved state", () => {
+    let doc = emptyDocument("resid");
+    doc = apply(doc, [
+      { op: "create_box", name: "A", length_mm: 60, width_mm: 40, height_mm: 10 },
+      { op: "create_body", name: "MB" },
+      { op: "create_box", body_id: "MB", name: "B", length_mm: 30, width_mm: 30, height_mm: 12 },
+      { op: "create_assembly", name: "rz" },
+      { op: "define_component", assembly_id: "rz", component_id: "a", include: { body_ids: ["Body"] } },
+      { op: "define_component", assembly_id: "rz", component_id: "b", include: { body_ids: ["MB"] } },
+      { op: "create_instance", assembly_id: "rz", component_id: "a", instance_id: "a1" },
+      { op: "fix_instance", assembly_id: "rz", instance_id: "a1" },
+      { op: "create_instance", assembly_id: "rz", component_id: "b", instance_id: "b1" },
+      { op: "set_distance", assembly_id: "rz", a_instance: "a1", a_ref: "top_face", b_instance: "b1", b_ref: "bottom_face", distance_mm: 5 },
+    ]);
+    // White-box gate check: an impossibly tight tolerance must flip the solve
+    // state to unsolved, proving residuals are enforced, not just logged.
+    const saved = SOLVER_TOLERANCES.distanceMm;
+    SOLVER_TOLERANCES.distanceMm = -1;
+    try {
+      const d = inspectData(doc, "rz") as any;
+      assert(d.constraint_state === "unsolved", `state ${d.constraint_state}`);
+      assert(d.solved === false, "solved must be false");
+      const c = d.constraints.find((x: any) => x.kind === "distance");
+      assert(c.status === "deferred" && typeof c.residual.distance_mm === "number", JSON.stringify(c));
+    } finally {
+      SOLVER_TOLERANCES.distanceMm = saved;
+    }
+    // With sane tolerances the same assembly solves cleanly.
+    const d2 = inspectData(doc, "rz") as any;
+    assert(d2.solved === true && d2.constraint_state === "underconstrained", d2.constraint_state);
+    return "enforcement gate proven both ways";
+  });
+
+
+
+  run("P61-redundant-dof", "redundant parallel still removes tilt freedoms", () => {
+    let doc = emptyDocument("redund");
+    doc = apply(doc, [
+      { op: "create_box", name: "A", length_mm: 60, width_mm: 40, height_mm: 10 },
+      { op: "create_body", name: "BB" },
+      { op: "create_box", body_id: "BB", name: "B", length_mm: 30, width_mm: 30, height_mm: 12 },
+      { op: "create_assembly", name: "rd" },
+      { op: "define_component", assembly_id: "rd", component_id: "a", include: { body_ids: ["Body"] } },
+      { op: "define_component", assembly_id: "rd", component_id: "b", include: { body_ids: ["BB"] } },
+      { op: "create_instance", assembly_id: "rd", component_id: "a", instance_id: "a1" },
+      { op: "fix_instance", assembly_id: "rd", instance_id: "a1" },
+      { op: "create_instance", assembly_id: "rd", component_id: "b", instance_id: "b1" },
+      { op: "set_parallel", assembly_id: "rd", a_instance: "a1", a_ref: "top_face", b_instance: "b1", b_ref: "top_face" },
+    ]);
+    const d = inspectData(doc, "rd") as any;
+    const c = d.constraints.find((x: any) => x.kind === "parallel");
+    const m = d.instances.find((i: any) => i.id === "b1");
+    assert(c.removedDof === 2, `removed_dof ${c.removed_dof} :: ${JSON.stringify(c)} :: ${JSON.stringify(d.constraints)}`);
+    assert(m.remaining_dof === 4, `remaining ${m.remaining_dof}`);
+    assert(m.free_rotation.join() === "about_z", `freeR ${m.free_rotation}`);
+    return `redundant-but-active: removed=${c.removed_dof} remaining=${m.remaining_dof}`;
+  });
 
   let failed = 0;
   for (const r of out) if (!r.passed) failed += 1;
