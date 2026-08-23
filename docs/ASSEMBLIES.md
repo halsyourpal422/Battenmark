@@ -9,7 +9,7 @@ OCC topology ids.
 
 | Concept | Meaning |
 | --- | --- |
-| **ComponentDefinition** | Reusable design content — a snapshot of bodies/features/parameters (native), or imported STEP/FCStd geometry (explicitly non-parametric). |
+| **ComponentDefinition** | Reusable design content — native snapshot of bodies/features/parameters, or imported STEP/FCStd geometry via the workspace-scoped importer (explicitly non-parametric; `set_definition_parameter` rejects it with UNKNOWN_PARAMETER). Authoritative builds branch explicitly on `source.kind`. Imported FCStd physical geometry uses final Body-Tip / visible-result shapes — historical features are never summed. |
 | **ComponentInstance** | One placement of a definition. Stable `instance_id`; array position is meaningless. Instances share the definition — no copied design trees. |
 | **AssemblyTransform** | Canonical rigid placement: millimetre translation + unit quaternion (scalar-last). |
 | **AssemblyRef** | Instance-qualified semantic reference: `bracket_1.top_face`, resolved per instance against the definition's own geometry. |

@@ -8,6 +8,7 @@ import { applyAll } from "../operations";
 import { buildAssemblyAuthoritative, exportAssemblyAuthoritative } from "./assembly.server";
 import { getFreeCadWorker } from "./client.server";
 import { freeCadKernel } from "./freecad.server";
+import { getArtifact } from "../service/artifacts";
 
 function assert(cond: unknown, msg: string): asserts cond {
   if (!cond) throw new Error(msg);
@@ -51,6 +52,7 @@ async function main() {
   };
 
   const doc = lAssemblyDoc();
+  let importedStepPid: string | null = null;
 
   let inspection: Record<string, any> | null = null;
   await check("worker-start", async () => {
@@ -103,6 +105,76 @@ async function main() {
     const again = (await buildAssemblyAuthoritative(doc, "bracket_demo")) as Record<string, any>;
     assert(again.instances.length === 2 && again.valid, "post-restart rebuild diverged");
     return `${pid0} → ${st.pid}; assembly state intact`;
+  });
+
+  // ---- Blocker 2 repair proof: imported components through the public contract
+  await check("imported-step-x2", async () => {
+    const { getAgentCadService } = await import("../service/agentcad");
+    const svc = getAgentCadService();
+    const proj = (await svc.createProject({ name: "asm-import-step" })) as Record<string, any>;
+    const pid = (proj.data as Record<string, any>).project_id as string;
+    importedStepPid = pid;
+    await await svc.executeTool("create_box", { project_id: pid, length_mm: 80, width_mm: 50, height_mm: 12, name: "Base" });
+    const exp = await svc.executeTool("export_step", { project_id: pid });
+    assert(exp.ok, JSON.stringify(exp.error));
+    const stepData = exp.data as Record<string, any>;
+    const stepPath = stepData.path ?? getArtifact(stepData.artifact_id as string)?.path;
+    assert(Boolean(stepPath), `no export path (data=${JSON.stringify(stepData).slice(0,200)})`);
+    await await svc.executeTool("create_assembly", { project_id: pid, name: "imported_asm" });
+    await await svc.executeTool("define_component", { project_id: pid, assembly_id: "imported_asm", component_id: "imp", source_format: "step", source_path: stepPath });
+    await await svc.executeTool("create_instance", { project_id: pid, assembly_id: "imported_asm", component_id: "imp", instance_id: "a", position: { x: 0 } });
+    await await svc.executeTool("fix_instance", { project_id: pid, assembly_id: "imported_asm", instance_id: "a" });
+    await await svc.executeTool("create_instance", { project_id: pid, assembly_id: "imported_asm", component_id: "imp", instance_id: "b", position: { x: 100 } });
+    const rebuilt = await svc.executeTool("rebuild_assembly", { project_id: pid, assembly_id: "imported_asm" });
+    assert(rebuilt.ok, JSON.stringify(rebuilt.error));
+    const inst = (rebuilt.data as Record<string, any>).instances as Array<Record<string, any>>;
+    assert(inst.length === 2, `instances ${inst.length}`);
+    for (const i of inst) {
+      assert(i.valid && approx(i.volume_mm3, 48000, 1), `${i.instance_id} V=${i.volume_mm3}`);
+    }
+    const bbA = inst[0]!.world_bbox, bbB = inst[1]!.world_bbox;
+    assert(approx(bbB.min.x - bbA.min.x, 100, 0.05), `offset ${bbB.min.x - bbA.min.x}`);
+    return `2x48000 mm³; bounds offset=${(bbB.min.x - bbA.min.x).toFixed(2)} (public service→worker path)`;
+  });
+
+  await check("imported-fcstd-tip", async () => {
+    const { getAgentCadService } = await import("../service/agentcad");
+    const svc = getAgentCadService();
+    const proj = (await svc.createProject({ name: "asm-import-fcstd" })) as Record<string, any>;
+    const pid = (proj.data as Record<string, any>).project_id as string;
+    await await svc.executeTool("create_box", { project_id: pid, length_mm: 80, width_mm: 50, height_mm: 12, name: "Base" });
+    const exp = await svc.executeTool("export_fcstd", { project_id: pid });
+    assert(exp.ok, JSON.stringify(exp.error));
+    const fcData = exp.data as Record<string, any>;
+    const fcPath = fcData.path ?? getArtifact(fcData.artifact_id as string)?.path;
+    assert(Boolean(fcPath), "no fcstd export path");
+    await await svc.executeTool("create_assembly", { project_id: pid, name: "fcstd_asm" });
+    await await svc.executeTool("define_component", { project_id: pid, assembly_id: "fcstd_asm", component_id: "native_file", source_format: "fcstd", source_path: fcPath });
+    await await svc.executeTool("set_definition_parameter", { project_id: pid, assembly_id: "fcstd_asm", component_id: "native_file", name: "nope", value: 1 })
+      .catch(() => undefined);
+    const rec = await svc.executeTool("set_definition_parameter", { project_id: pid, assembly_id: "fcstd_asm", component_id: "native_file", name: "nope", value: 1 });
+    assert(!rec.ok && rec.error?.error === "UNKNOWN_PARAMETER", `imported params must be rejected: ${JSON.stringify(rec).slice(0,300)}`);
+    await await svc.executeTool("create_instance", { project_id: pid, assembly_id: "fcstd_asm", component_id: "native_file", instance_id: "f1" });
+    await await svc.executeTool("fix_instance", { project_id: pid, assembly_id: "fcstd_asm", instance_id: "f1" });
+    const rebuilt = await svc.executeTool("rebuild_assembly", { project_id: pid, assembly_id: "fcstd_asm" });
+    assert(rebuilt.ok, JSON.stringify(rebuilt.error));
+    const inst = (rebuilt.data as Record<string, any>).instances as Array<Record<string, any>>;
+    assert(inst.length === 1 && inst[0]!.valid && approx(inst[0]!.volume_mm3, 48000, 1),
+      `V=${inst[0]?.volume_mm3} (Tip/visible-result semantics)`);
+    return `fcstd import Tip-volume=${inst[0]!.volume_mm3}`;
+  });
+
+  await check("restart-with-imported", async () => {
+    const pid0 = worker.getPid();
+    worker.kill("SIGKILL");
+    const st = await freeCadKernel.available();
+    assert(st.available && st.pid !== pid0, `restart ${pid0}→${st.pid}`);
+    const { getAgentCadService } = await import("../service/agentcad");
+    const svc = getAgentCadService();
+    assert(importedStepPid, "imported-step check did not run");
+    const rebuilt = await svc.executeTool("rebuild_assembly", { project_id: importedStepPid, assembly_id: "imported_asm" });
+    assert(rebuilt.ok && (rebuilt.data as Record<string, any>).instances.length === 2, `post-restart diverged: ${JSON.stringify({ok:rebuilt.ok,err:rebuilt.error,n:(rebuilt.data as any)?.instances?.length}).slice(0,300)}`);
+    return `${pid0} → ${st.pid}; imported definitions resolve from persisted source`;
   });
 
   try {

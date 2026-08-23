@@ -39,6 +39,9 @@ Backend-neutral assemblies on the frozen foundation:
 - Authoritative FreeCAD output: `App::Part` hierarchy, per-instance placements,
   volumes preserved; FCStd + STEP export.
 - Assembly preview rendering at solved transforms.
+- Imported component definitions (STEP/FCStd) build authoritatively via the
+  existing secured importer; non-parametric by contract. Axis refs accept
+  coordinate axes or feature/body names (structured axis objects unsupported).
 - Schema stays 2 (additive `assemblies[]`); new error codes
   (`ASSEMBLY_*`, `CONSTRAINT_*`); granular `assembly.*` capabilities.
 

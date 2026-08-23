@@ -290,6 +290,85 @@ function main() {
     return `solve+inspect 100 instances in ${Date.now() - t0} ms`;
   });
 
+  // ---- N. structured face selector: pivot from real geometry -------------------
+  run("N-struct-pivot", "structured selector pivot ≠ origin", () => {
+    let doc = emptyDocument("struct-pivot");
+    doc = apply(doc, [
+      { op: "create_box", name: "Base", length_mm: 100, width_mm: 60, height_mm: 10 },
+      { op: "create_body", name: "MoverBody" },
+      { op: "create_box", body_id: "MoverBody", name: "Mover", length_mm: 40, width_mm: 20, height_mm: 20 },
+      { op: "create_assembly", name: "sp" },
+      { op: "define_component", assembly_id: "sp", component_id: "base" },
+      { op: "define_component", assembly_id: "sp", component_id: "mover", include: { body_ids: ["MoverBody"] } },
+      { op: "create_instance", assembly_id: "sp", component_id: "base", instance_id: "b1" },
+      { op: "fix_instance", assembly_id: "sp", instance_id: "b1" },
+      { op: "create_instance", assembly_id: "sp", component_id: "mover", instance_id: "m1", rotation_euler_xyz_deg: { x: 90, y: 0, z: 0 } },
+      {
+        op: "set_angle",
+        assembly_id: "sp",
+        a_instance: "b1",
+        a_ref: "top_face",
+        b_instance: "m1",
+        b_ref: { entity: "face", nearest: { x: 20, y: 10, z: 20 }, unique: true },
+        angle_deg: 180,
+      },
+    ]);
+    const data = inspectData(doc, "sp") as { solved: boolean; instances: Array<{ id: string; transform: { translation: { x: number; y: number; z: number } } }> };
+    assert(data.solved, "unsolved");
+    const m = data.instances.find((i) => i.id === "m1")!;
+    const t = m.transform.translation;
+    // Rotation Rx(90+90) about the selected face CENTER (20,-20,10 after pre-rotation):
+    // t' = p + R90x*(t - p) with t=(0,0,0) -> (0,-30,-10). Origin-pivot bug gives (0,0,0).
+    assert(Math.abs(t.x) < 1e-6 && Math.abs(t.y + 10) < 1e-6 && Math.abs(t.z - 30) < 1e-6,
+      `pivot-bug translation ${t.x},${t.y},${t.z} expected 0,-10,30 (origin bug would give 0,0,0)`);
+    return `translation=${t.x},${t.y},${t.z} (pivot = selected face center)`;
+  });
+
+  // ---- O. structured axis honestly narrowed ------------------------------------
+  run("O-axis-narrowed", "structured axis rejected early", () => {
+    let doc = basePlateDoc();
+    doc = apply(doc, [
+      { op: "create_assembly", name: "ax" },
+      { op: "define_component", assembly_id: "ax", component_id: "c" },
+      { op: "create_instance", assembly_id: "ax", component_id: "c", instance_id: "i1" },
+    ]);
+    doc = apply(doc, [{ op: "align_axes", assembly_id: "ax", a_instance: "i1", a_axis: { entity: "face", selector: "cylindrical", unique: true }, b_instance: "i1", b_axis: "Z" } as Operation]);
+    expectOpError(doc, { op: "inspect_assembly", assembly_id: "ax" } as Operation, "INVALID_ASSEMBLY_REFERENCE");
+    return "schema and runtime agree";
+  });
+
+  // ---- P/Q. gref through assembly references ------------------------------------
+  run("P-gref-valid", "gref reference resolves", () => {
+    let doc = emptyDocument("gref-ok");
+    doc = apply(doc, [
+      { op: "create_box", name: "Base", length_mm: 100, width_mm: 60, height_mm: 10 },
+      { op: "create_body", name: "MB" },
+      { op: "create_box", body_id: "MB", name: "Mv", length_mm: 40, width_mm: 20, height_mm: 20 },
+      { op: "create_assembly", name: "gv" },
+      { op: "define_component", assembly_id: "gv", component_id: "base", include: { body_ids: ["Body"] } },
+      { op: "define_component", assembly_id: "gv", component_id: "mover", include: { body_ids: ["MB"] } },
+      { op: "create_instance", assembly_id: "gv", component_id: "base", instance_id: "b1" },
+      { op: "fix_instance", assembly_id: "gv", instance_id: "b1" },
+      { op: "create_instance", assembly_id: "gv", component_id: "mover", instance_id: "m1" },
+      { op: "mate_faces", assembly_id: "gv", a_instance: "b1", a_face: { gref: "gref_face_001" }, b_instance: "m1", b_face: "bottom_face" },
+    ]);
+    const data = inspectData(doc, "gv") as { solved: boolean };
+    assert(data.solved, "gref constraint did not apply");
+    return "gref_face_001 resolved through canonical query path";
+  });
+
+  run("Q-gref-lost", "missing gref fails explicitly", () => {
+    let doc = basePlateDoc();
+    doc = apply(doc, [
+      { op: "create_assembly", name: "gl" },
+      { op: "define_component", assembly_id: "gl", component_id: "c" },
+      { op: "create_instance", assembly_id: "gl", component_id: "c", instance_id: "i1" },
+      { op: "create_instance", assembly_id: "gl", component_id: "c", instance_id: "i2" },
+      { op: "mate_faces", assembly_id: "gl", a_instance: "i1", a_face: { gref: "gref_face_999" }, b_instance: "i2", b_face: "top_face" },
+    ]);
+    expectOpError(doc, { op: "inspect_assembly", assembly_id: "gl" } as Operation, "GEOMETRY_REFERENCE_LOST");
+  });
+
   let failed = 0;
   for (const r of out) if (!r.passed) failed += 1;
   console.log(`\n${out.length - failed}/${out.length} assembly unit tests passed`);
