@@ -17,6 +17,7 @@ import type {
 import { cadError } from "../errors";
 import { uid } from "../ids";
 import { evaluateExpression, resolveParameters } from "../expressions";
+import { detectImportFormat, resolveReadablePath } from "../service/ingest";
 import { solveAssembly } from "./solver";
 import { identityTransform } from "./transforms";
 
@@ -113,13 +114,17 @@ export function defineComponent(
     if (!op.source_path) {
       throw cadError("MALFORMED_REQUEST", "source_path is required when source_format is given.");
     }
+    // Reuse the single-part import security policy: format whitelist,
+    // existence check, workspace-scoped path resolution (no traversal).
+    const format = detectImportFormat(op.source_path, op.source_format);
+    const absPath = resolveReadablePath(op.source_path);
     def = {
       id,
       name: op.name ?? id,
       source: {
         kind: "imported",
-        format: op.source_format,
-        sourcePath: op.source_path,
+        format,
+        sourcePath: absPath,
         note: "Imported geometry component — carries no Battenmark parametric history.",
       },
       parameters: [],
@@ -233,6 +238,13 @@ export function setDefinitionParameter(
   const asm = requireAsm(doc, op.assembly_id);
   const def = asm.definitions.find((d) => d.id === op.component_id);
   if (!def) throw cadError("COMPONENT_NOT_FOUND", `Component '${op.component_id}' was not found.`, { assembly: asm.id });
+  if (def.source.kind === "imported") {
+    throw cadError(
+      "UNKNOWN_PARAMETER",
+      `Component '${def.id}' is imported geometry and has no Battenmark parameters.`,
+      { suggestion: "Parameters apply to native component definitions only." },
+    );
+  }
   const p = def.parameters.find((x) => x.name === op.name);
   if (!p) {
     throw cadError("UNKNOWN_PARAMETER", `Component '${def.id}' has no parameter '${op.name}'.`, {

@@ -16,6 +16,7 @@ visible and editable when the FCStd is reopened.
 from __future__ import annotations
 
 import math
+import os
 from typing import Any
 
 import FreeCAD as App
@@ -81,6 +82,59 @@ def _definition_shape(definition: dict[str, Any], label: str):
     return compound, built
 
 
+def _imported_shape(source: dict[str, Any], label: str):
+    """Materialize an imported STEP/FCStd component via existing importer
+    semantics. FCStd uses Body.Tip / visible feature shapes; historical
+    PartDesign intermediates are never summed."""
+    path = source.get("sourcePath")
+    fmt = source.get("format")
+    if not path:
+        raise RuntimeError(f"Imported definition '{label}' has no sourcePath")
+    if not os.path.isfile(path):
+        raise RuntimeError(f"File not found: {path}")
+
+    if fmt == "step":
+        import Import  # noqa: WPS433
+
+        tmp = App.newDocument(f"import_{label}")
+        try:
+            Import.insert(path, tmp.Name)
+            solids = _visible_solids(tmp)
+        finally:
+            App.closeDocument(tmp.Name)
+    elif fmt == "fcstd":
+        opened = App.openDocument(path)
+        solids = []
+        for obj in opened.Objects:
+            if obj.TypeId == "PartDesign::Body":
+                tip = getattr(obj, "Tip", None)
+                shape = getattr(tip, "Shape", None) if tip is not None else getattr(obj, "Shape", None)
+                if shape is not None and not shape.isNull():
+                    for solid in shape.Solids or ([shape] if shape.ShapeType == "Solid" else []):
+                        solids.append(solid)
+            elif hasattr(obj, "Shape") and obj.Shape is not None and not obj.Shape.isNull():
+                sh = obj.Shape
+                if sh.ShapeType == "Solid":
+                    solids.append(sh)
+    else:
+        raise RuntimeError(f"Unsupported import format '{fmt}' for assemblies")
+
+    if not solids:
+        raise RuntimeError(f"Imported definition '{label}' produced no solids")
+    return Part.makeCompound(solids)
+
+
+def _visible_solids(doc):
+    solids = []
+    for obj in doc.Objects:
+        shape = getattr(obj, "Shape", None)
+        if shape is None or shape.isNull():
+            continue
+        for solid in shape.Solids or ([shape] if shape.ShapeType == "Solid" else []):
+            solids.append(solid)
+    return solids
+
+
 def build_assembly(payload: dict[str, Any]) -> dict[str, Any]:
     """Build an App::Part hierarchy from canonical assembly state."""
     asm = payload["assembly"]
@@ -102,10 +156,18 @@ def build_assembly(payload: dict[str, Any]) -> dict[str, Any]:
         cid = inst["componentId"]
         if cid in def_shapes or cid not in (definitions or {}):
             continue
+        definition = definitions[cid]
+        source = definition.get("source") or {"kind": "native"}
         try:
-            shape, _built = _definition_shape(definitions[cid], cid)
+            if source.get("kind") == "imported":
+                shape = _imported_shape(source, cid)
+            elif source.get("kind") == "native":
+                shape, _built = _definition_shape(definition, cid)
+            else:
+                raise RuntimeError(f"Unknown component source kind '{source.get('kind')}'")
         except Exception as err:  # noqa: BLE001 - surfaced as structured issue
-            issues.append({"severity": "error", "code": "RECOMPUTE_FAILED", "message": str(err)})
+            code = "IMPORT_FAILED" if source.get("kind") == "imported" else "RECOMPUTE_FAILED"
+            issues.append({"severity": "error", "code": code, "message": str(err)})
             continue
         def_shapes[cid] = shape
         def_volumes[cid] = sum(s.Volume for s in shape.Solids)

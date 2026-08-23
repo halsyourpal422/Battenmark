@@ -129,6 +129,74 @@ class AgentCad:
     def set_parameter(self, project_id: str, name: str, value: float) -> dict[str, Any]:
         return self.call(project_id, "set_parameter", name=name, value=value)
 
+    # ------------------------- assemblies (Phase 6) -------------------------
+    def create_assembly(self, name: str) -> dict[str, Any]:
+        return self.call_project_op("create_assembly", {"name": name})
+
+    def define_component(self, assembly_id: str, component_id: str | None = None, name: str | None = None) -> dict[str, Any]:
+        args: dict[str, Any] = {"assembly_id": assembly_id}
+        if component_id: args["component_id"] = component_id
+        if name: args["name"] = name
+        return self.call_project_op("define_component", args)
+
+    def create_instance(self, assembly_id: str, component_id: str, instance_id: str | None = None,
+                        position: dict[str, float] | None = None,
+                        rotation_euler_xyz_deg: dict[str, float] | None = None) -> dict[str, Any]:
+        args: dict[str, Any] = {"assembly_id": assembly_id, "component_id": component_id}
+        if instance_id: args["instance_id"] = instance_id
+        if position: args["position"] = position
+        if rotation_euler_xyz_deg: args["rotation_euler_xyz_deg"] = rotation_euler_xyz_deg
+        return self.call_project_op("create_instance", args)
+
+    def fix_instance(self, assembly_id: str, instance_id: str) -> dict[str, Any]:
+        return self.call_project_op("fix_instance", {"assembly_id": assembly_id, "instance_id": instance_id})
+
+    def mate_faces(self, assembly_id: str, a_instance: str, a_face: "str | dict[str, Any]", b_instance: str,
+                   b_face: "str | dict[str, Any]", offset_mm: float | None = None) -> dict[str, Any]:
+        args: dict[str, Any] = {"assembly_id": assembly_id, "a_instance": a_instance, "a_face": a_face,
+                                "b_instance": b_instance, "b_face": b_face}
+        if offset_mm is not None: args["offset_mm"] = offset_mm
+        return self.call_project_op("mate_faces", args)
+
+    def align_axes(self, assembly_id: str, a_instance: str, a_axis: str, b_instance: str, b_axis: str,
+                   concentric: bool = False) -> dict[str, Any]:
+        return self.call_project_op("align_axes", {"assembly_id": assembly_id, "a_instance": a_instance,
+                                                   "a_axis": a_axis, "b_instance": b_instance,
+                                                   "b_axis": b_axis, "concentric": concentric})
+
+    def set_distance(self, assembly_id: str, a_instance: str, a_ref: str, b_instance: str, b_ref: str,
+                     distance_mm: float) -> dict[str, Any]:
+        return self.call_project_op("set_distance", {"assembly_id": assembly_id, "a_instance": a_instance,
+                                                     "a_ref": a_ref, "b_instance": b_instance,
+                                                     "b_ref": b_ref, "distance_mm": distance_mm})
+
+    def set_angle(self, assembly_id: str, a_instance: str, a_ref: str, b_instance: str, b_ref: str,
+                  angle_deg: float) -> dict[str, Any]:
+        return self.call_project_op("set_angle", {"assembly_id": assembly_id, "a_instance": a_instance,
+                                                  "a_ref": a_ref, "b_instance": b_instance,
+                                                  "b_ref": b_ref, "angle_deg": angle_deg})
+
+    def inspect_assembly(self, assembly_id: str) -> dict[str, Any]:
+        return self.call_project_op("inspect_assembly", {"assembly_id": assembly_id})
+
+    def rebuild_assembly(self, assembly_id: str) -> dict[str, Any]:
+        return self.call_project_op("rebuild_assembly", {"assembly_id": assembly_id})
+
+    def export_assembly(self, assembly_id: str, format: str = "fcstd") -> dict[str, Any]:
+        return self.call_project_op("export_assembly", {"assembly_id": assembly_id, "format": format})
+
+    def with_project(self, project_id: str) -> "AgentCad":
+        """Bind a default project for the assembly convenience methods."""
+        self._project_id = project_id
+        return self
+
+    def call_project_op(self, operation: str, arguments: dict[str, Any]) -> dict[str, Any]:
+        """Generic project-scoped operation passthrough (assembly ops included)."""
+        pid = getattr(self, "_project_id", None)
+        if not pid:
+            raise AgentCadError({"error": {"error": "NO_PROJECT", "message": "Call with_project(project_id) first."}})
+        return self._request("POST", f"/projects/{pid}/operations", {"operation": operation, "arguments": arguments})
+
     def artifact(self, artifact_id: str, download: bool = False) -> bytes | dict[str, Any]:
         suffix = "" if download else "?download=meta"
         if not download:

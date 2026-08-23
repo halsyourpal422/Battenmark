@@ -15,6 +15,7 @@ function stripDefinition(def: Assembly["definitions"][number]) {
   return {
     id: def.id,
     name: def.name,
+    source: def.source,
     parameters: def.parameters,
     bodies: def.bodies,
     features: def.features,
