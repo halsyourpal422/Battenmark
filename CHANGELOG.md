@@ -26,6 +26,17 @@ First public release. Ships the Phase 5.5.1 verified universal CAD foundation:
 The internal engineering version (`CAD_SERVICE_VERSION = "0.5.6"`) is retained by
 design; see docs/VERSIONING.md.
 
+## Unreleased — Phase 6.1 (constraint hardening)
+
+- `set_parallel` / `set_perpendicular` constraints (planar faces; minimal deterministic rotation; translation preserved).
+- Rank-based rigid-body DOF diagnostics: per-instance remaining freedoms with axis labels,
+  `constraint_state` (fully_constrained / underconstrained / conflicted / unsolved),
+  per-constraint `removed_dof` and post-solve residuals.
+- Authoritative `check_interference`: OCC B-rep `common()` volumes, AABB broad-phase,
+  contact-vs-penetration semantics, pair limits.
+- Instance efficiency: App::Link-based definition sharing with automatic shape-copy fallback
+  (representation is a backend detail; public IR unchanged).
+
 ## Unreleased — Phase 6 (assemblies)
 
 Backend-neutral assemblies on the frozen foundation:

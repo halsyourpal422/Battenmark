@@ -8,7 +8,7 @@
 import type { Assembly, CadDocument } from "../types";
 import { cadError } from "../errors";
 import { solveAssembly } from "../assembly/solver";
-import { getFreeCadWorker, withDocumentLock } from "./client.server";
+import { CadWorkerError, getFreeCadWorker, withDocumentLock } from "./client.server";
 import { workspacePath } from "./workspace.server";
 
 function stripDefinition(def: Assembly["definitions"][number]) {
@@ -22,7 +22,11 @@ function stripDefinition(def: Assembly["definitions"][number]) {
   };
 }
 
-export async function buildAssemblyAuthoritative(doc: CadDocument, assemblyId: string) {
+export async function buildAssemblyAuthoritative(
+  doc: CadDocument,
+  assemblyId: string,
+  opts: { useLinks?: boolean } = {},
+) {
   const asm = doc.assemblies?.find((a) => a.id === assemblyId || a.name === assemblyId);
   if (!asm) throw cadError("ASSEMBLY_NOT_FOUND", `Assembly '${assemblyId}' was not found.`);
   const solved = solveAssembly(doc, asm.id);
@@ -37,6 +41,7 @@ export async function buildAssemblyAuthoritative(doc: CadDocument, assemblyId: s
     assembly: { id: asm.id, name: asm.name, instances: asm.instances },
     definitions,
     placements: solved.placements,
+    use_links: opts.useLinks === true,
   };
   return withDocumentLock(`${doc.id}:${asm.id}`, async () => {
     const worker = getFreeCadWorker();
@@ -83,6 +88,37 @@ export async function exportAssemblyAuthoritative(
         res.error?.code ?? "EXPORT_FAILED",
         res.error?.message ?? "assembly export failed",
       );
+    }
+    return res.result;
+  });
+}
+
+export async function checkInterferenceAuthoritative(
+  doc: CadDocument,
+  assemblyId: string,
+  opts: { minVolumeMm3?: number; instanceIds?: string[] } = {},
+) {
+  const asm = doc.assemblies?.find((a) => a.id === assemblyId || a.name === assemblyId);
+  if (!asm) throw cadError("ASSEMBLY_NOT_FOUND", `Assembly '${assemblyId}' was not found.`);
+  const solved = solveAssembly(doc, asm.id);
+  if (!solved.solved) {
+    throw cadError("ASSEMBLY_UNSOLVED", "Assembly has constraints that could not be applied.");
+  }
+  const definitions: Record<string, unknown> = {};
+  for (const d of asm.definitions) definitions[d.id] = stripDefinition(d);
+  const payload = {
+    assembly: { id: asm.id, name: asm.name, instances: asm.instances },
+    definitions,
+    placements: solved.placements,
+    min_volume_mm3: opts.minVolumeMm3,
+    instance_ids: opts.instanceIds,
+    use_links: false,
+  };
+  return withDocumentLock(`${doc.id}:${asm.id}:interference`, async () => {
+    const worker = getFreeCadWorker();
+    const res = await worker.request("assembly", { arguments: { mode: "interference", ...payload } }, 180_000);
+    if (!res.ok || !res.result) {
+      throw new CadWorkerError(res.error?.code ?? "INTERFERENCE_CHECK_FAILED", res.error?.message ?? "interference check failed");
     }
     return res.result;
   });

@@ -9,6 +9,8 @@ Supported today: `fixed`, `mate_faces`, `align_axes`, `concentric`,
 Not supported yet: parallel/perpendicular shorthands, gear/screw joints,
 path mates, symmetric mates, collision-driven solving, motion/kinematics.
 
+State truth: contradictory constraints **raise `CONSTRAINT_CONFLICT`** at solve time; the `conflicted` constraint_state is therefore not emitted through normal inspection. Residual validation is enforced post-solve — an applied relationship outside tolerance flips the assembly to `unsolved`. Redundant-but-mechanically-active constraints still contribute DOF restriction.
+
 Semantics: insertion-order evaluation; second reference moves; grounded
 instances immovable; contradictory duplicates raise `CONSTRAINT_CONFLICT`;
 unapplied leftovers raise `ASSEMBLY_UNSOLVED`; ambiguous or vanished

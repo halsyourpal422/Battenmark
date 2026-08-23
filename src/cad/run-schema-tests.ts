@@ -10,6 +10,7 @@ import {
   assertCompatibleSchema,
   getCatalogEntry,
   TOOL_CATALOG,
+  validateToolArgs,
 } from "./schema";
 import { emptyDocument } from "./document";
 import { applyAll, applyOperation } from "./operations";
@@ -90,9 +91,32 @@ async function main() {
       assert(requiredCapabilitiesFor("create_hole", { through: true })[0] === "feature.hole.through", "through cap");
       const fc = freecadCapabilities({ available: true });
       assert(fc.capabilities["pattern.circular"] === false, "circular claimed");
-      assert(fc.capabilities.assembly === true && fc.capabilities["assembly.face_mate"] === true && fc.capabilities["assembly.interference"] === false, "assembly capability flags");
+      assert(fc.capabilities.assembly === true && fc.capabilities["assembly.face_mate"] === true && fc.capabilities["assembly.interference"] === true && fc.capabilities["assembly.parallel"] === true && fc.capabilities["assembly.instance_links"] === false, "assembly capability flags");
       assert(fc.capabilities["feature.hole.helical_thread"] === false, "helical claimed");
       return `tools=${TOOL_CATALOG.length}`;
+    }),
+  );
+
+  out.push(
+    await run("parallel-schema", "set_parallel/set_perpendicular required fields match properties", () => {
+      for (const name of ["set_parallel", "set_perpendicular"]) {
+        const e = getCatalogEntry(name);
+        assert(e, `${name} missing`);
+        for (const req of e!.required) {
+          assert((e!.properties as Record<string, unknown>)[req] !== undefined,
+            `${name}: required '${req}' is not a defined property`);
+        }
+        assert(e!.required.includes("a_ref") && e!.required.includes("b_ref"), `${name} must require a_ref/b_ref`);
+        // positive: valid args satisfy validation
+        assert(validateToolArgs(name, { assembly_id: "a", a_instance: "i1", a_ref: "top_face", b_instance: "i2", b_ref: "front_face" }) === null, `${name} positive rejected`);
+        // negative: missing a_ref
+        const miss = validateToolArgs(name, { assembly_id: "a", a_instance: "i1", b_instance: "i2", b_ref: "front_face" });
+        assert(miss !== null && miss.includes("a_ref"), `${name} missing-a_ref undetected`);
+        // supplying only the nonexistent legacy a_face must NOT satisfy schema
+        const legacy = validateToolArgs(name, { assembly_id: "a", a_instance: "i1", a_face: "top_face", b_instance: "i2", b_ref: "x" });
+        assert(legacy !== null && legacy.includes("a_ref"), `${name} legacy a_face accepted`);
+      }
+      return "both ops verified";
     }),
   );
 

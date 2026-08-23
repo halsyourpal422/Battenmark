@@ -200,6 +200,20 @@ def build_assembly(payload: dict[str, Any]) -> dict[str, Any]:
     part = doc.addObject("App::Part", "Assembly")
     part.Label = asm.get("name") or "Assembly"
 
+    # Instance representation: prefer App::Link sharing one definition object
+    # per component; degrade to shape copies if links are unavailable/failing.
+    use_links = payload.get("use_links") is True
+    link_ok = use_links
+    def_features = {}
+    defs_group = None
+    if link_ok:
+        try:
+            defs_group = doc.addObject("App::Part", "Definitions")
+            defs_group.Label = "Definitions"
+            part.addObject(defs_group)
+        except Exception:
+            link_ok = False
+
     for inst in asm.get("instances") or []:
         iid = inst["id"]
         cid = inst["componentId"]
@@ -212,27 +226,58 @@ def build_assembly(payload: dict[str, Any]) -> dict[str, Any]:
                 issues.append({"severity": "error", "code": "COMPONENT_NOT_FOUND", "message": f"Definition '{cid}' missing."})
             continue
 
-        feature = doc.addObject("Part::Feature", iid)
-        feature.Label = iid
-        shape_copy = def_shapes[cid].copy()
-        shape_copy.Placement = _placement(placement)
-        feature.Shape = shape_copy
-        part.addObject(feature)
+        made_link = False
+        feature = None
+        representation = "shape_copy"
+        if link_ok:
+            try:
+                if cid not in def_features:
+                    src = doc.addObject("Part::Feature", f"{cid}_definition")
+                    src.Shape = def_shapes[cid]
+                    src.Visibility = False
+                    def_features[cid] = src
+                    defs_group.addObject(src)
+                feature = doc.addObject("App::Link", iid)
+                feature.Label = iid
+                feature.LinkedObject = def_features[cid]
+                part.addObject(feature)
+                made_link = True
+                representation = "app_link"
+            except Exception:
+                link_ok = False
+                if feature is not None:
+                    try:
+                        doc.removeObject(feature.Name)
+                    except Exception:
+                        pass
+        if not made_link:
+            feature = doc.addObject("Part::Feature", iid)
+            feature.Label = iid
+            shape_copy = def_shapes[cid].copy()
+            shape_copy.Placement = _placement(placement)
+            feature.Shape = shape_copy
+            part.addObject(feature)
+        else:
+            feature.Placement = _placement(placement)
 
-        valid = all(s.isValid() for s in shape_copy.Solids)
-        volume = sum(s.Volume for s in shape_copy.Solids)
+        placed_shape = getattr(feature, "Shape", None)
+        valid = bool(placed_shape is not None and not placed_shape.isNull()
+                     and all(sol.isValid() for sol in placed_shape.Solids))
+        volume = sum(sol.Volume for sol in placed_shape.Solids) if placed_shape else 0.0
         total_volume += volume
-        bb = shape_copy.BoundBox
+        bb = placed_shape.BoundBox if placed_shape else None
         instance_reports.append({
             "instance_id": iid,
             "component_id": cid,
             "fixed": bool(inst.get("fixed")),
             "valid": valid,
             "volume_mm3": volume,
-            "world_bbox": {
-                "min": {"x": bb.XMin, "y": bb.YMin, "z": bb.ZMin},
-                "max": {"x": bb.XMax, "y": bb.YMax, "z": bb.ZMax},
-            },
+            "world_bbox": (
+                {"min": {"x": bb.XMin, "y": bb.YMin, "z": bb.ZMin},
+                 "max": {"x": bb.XMax, "y": bb.YMax, "z": bb.ZMax}} if bb else None
+            ),
+            "representation": representation,
+            "linked_definition": def_features[cid].Name if made_link else None,
             "transform": placement,
         })
 
@@ -251,9 +296,72 @@ def build_assembly(payload: dict[str, Any]) -> dict[str, Any]:
         ),
         "issues": issues,
         "valid": not any(i["severity"] == "error" for i in issues),
-        "representation": "App::Part + Part::Feature per instance (Placement carries the transform)",
+        "representation": ("app_link" if use_links and link_ok else "shape_copy"),
+        "representation_counts": {
+            "links": sum(1 for r in instance_reports if r.get("representation") == "app_link"),
+            "copies": sum(1 for r in instance_reports if r.get("representation") == "shape_copy"),
+            "definitions": len(def_features),
+        },
     }
     return {"result": result, "session_doc": doc, "part": part}
+
+
+def check_interference(payload):
+    """Authoritative B-rep static interference via Shape.common(). Volumetric
+    only; face/edge contact yields ~zero volume and is not reported."""
+    import time as _time
+
+    t0 = _time.time()
+    built = build_assembly(payload)
+    base = built["result"]
+    doc = built["session_doc"]
+    min_vol = float((payload or {}).get("min_volume_mm3") or 1e-6)
+    scope = set((payload or {}).get("instance_ids") or [])
+
+    shapes = {}
+    for rep in base["instances"]:
+        iid = rep["instance_id"]
+        if scope and iid not in scope:
+            continue
+        obj = doc.getObject(iid)
+        sh = getattr(obj, "Shape", None)
+        if sh is not None and not sh.isNull():
+            shapes[iid] = sh
+
+    ids = sorted(shapes.keys())
+    tol = 1e-6
+    possible = len(ids) * (len(ids) - 1) // 2
+    candidates = 0
+    occ_calls = 0
+    pairs = []
+    for i in range(len(ids)):
+        for j in range(i + 1, len(ids)):
+            a, b = ids[i], ids[j]
+            bba, bbb = shapes[a].BoundBox, shapes[b].BoundBox
+            overlap = (
+                min(bba.XMax, bbb.XMax) - max(bba.XMin, bbb.XMin) > tol
+                and min(bba.YMax, bbb.YMax) - max(bba.YMin, bbb.YMin) > tol
+                and min(bba.ZMax, bbb.ZMax) - max(bba.ZMin, bbb.ZMin) > tol
+            )
+            if not overlap:
+                continue
+            candidates += 1
+            occ_calls += 1
+            common = shapes[a].common(shapes[b])
+            vol = sum(sol.Volume for sol in (common.Solids or []))
+            if vol > min_vol:
+                pairs.append({"instance_a": a, "instance_b": b, "intersects": True,
+                              "volume_mm3": vol,
+                              "bbox_overlap_min": {"x": max(bba.XMin, bbb.XMin), "y": max(bba.YMin, bbb.YMin), "z": max(bba.ZMin, bbb.ZMin)},
+                              "bbox_overlap_max": {"x": min(bba.XMax, bbb.XMax), "y": min(bba.YMax, bbb.YMax), "z": min(bba.ZMax, bbb.ZMax)}})
+    return {"result": {
+        "pairs": pairs,
+        "stats": {"instances_checked": len(ids), "possible_pairs": possible,
+                  "aabb_candidates": candidates, "occ_boolean_calls": occ_calls,
+                  "elapsed_ms": int((_time.time() - t0) * 1000)},
+        "semantics": "volumetric only; face/edge contact reported as no interference",
+    }}
+
 
 
 def export_assembly(payload: dict[str, Any], fmt: str, path: str) -> dict[str, Any]:

@@ -197,6 +197,19 @@ class AgentCad:
             raise AgentCadError({"error": {"error": "NO_PROJECT", "message": "Call with_project(project_id) first."}})
         return self._request("POST", f"/projects/{pid}/operations", {"operation": operation, "arguments": arguments})
 
+    def set_parallel(self, assembly_id: str, a_instance: str, a_ref: "str | dict[str, Any]", b_instance: str, b_ref: "str | dict[str, Any]") -> dict[str, Any]:
+        return self.call_project_op("set_parallel", {"assembly_id": assembly_id, "a_instance": a_instance, "a_ref": a_ref, "b_instance": b_instance, "b_ref": b_ref})
+
+    def set_perpendicular(self, assembly_id: str, a_instance: str, a_ref: "str | dict[str, Any]", b_instance: str, b_ref: "str | dict[str, Any]") -> dict[str, Any]:
+        return self.call_project_op("set_perpendicular", {"assembly_id": assembly_id, "a_instance": a_instance, "a_ref": a_ref, "b_instance": b_instance, "b_ref": b_ref})
+
+    def check_interference(self, assembly_id: str, min_volume_mm3: float | None = None,
+                           instance_ids: list[str] | None = None) -> dict[str, Any]:
+        args: dict[str, Any] = {"assembly_id": assembly_id}
+        if min_volume_mm3 is not None: args["min_volume_mm3"] = min_volume_mm3
+        if instance_ids: args["instance_ids"] = instance_ids
+        return self.call_project_op("check_interference", args)
+
     def artifact(self, artifact_id: str, download: bool = False) -> bytes | dict[str, Any]:
         suffix = "" if download else "?download=meta"
         if not download:

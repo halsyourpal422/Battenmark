@@ -17,7 +17,7 @@ import {
 } from "../schema";
 import { getBackendRegistry, resetBackendRegistry } from "../backend/registry";
 import { requiredCapabilitiesFor } from "../backend/capabilities";
-import { buildAssemblyAuthoritative, exportAssemblyAuthoritative } from "../kernel/assembly.server";
+import { buildAssemblyAuthoritative, checkInterferenceAuthoritative, exportAssemblyAuthoritative } from "../kernel/assembly.server";
 import { withProjectLock } from "./lock";
 import { okResult, failResult, fromToolResult, asServiceError, type ServiceResult } from "./result";
 import { serviceLog } from "./log";
@@ -287,9 +287,20 @@ export class AgentCadService {
               body_id: typeof args.body_id === "string" ? args.body_id : undefined,
             });
           }
+          if (name === "check_interference") {
+            const ids = Array.isArray(args.instance_ids) ? (args.instance_ids as string[]) : undefined;
+            return finish(
+              await this.interferenceUnlocked(
+                project,
+                String(args.assembly_id ?? ""),
+                typeof args.min_volume_mm3 === "number" ? args.min_volume_mm3 : undefined,
+                ids,
+              ),
+            );
+          }
           if (name === "rebuild_assembly") {
             return finish(
-              await this.rebuildAssemblyUnlocked(project, String(args.assembly_id ?? "")),
+              await this.rebuildAssemblyUnlocked(project, String(args.assembly_id ?? ""), args.use_links === true),
             );
           }
           if (name === "export_assembly") {
@@ -754,8 +765,8 @@ export class AgentCadService {
     }
   }
 
-  async rebuildAssemblyUnlocked(project: CadProject, assemblyId: string): Promise<ServiceResult> {
-    const inspection = await buildAssemblyAuthoritative(project.document, assemblyId);
+  async rebuildAssemblyUnlocked(project: CadProject, assemblyId: string, useLinks = false): Promise<ServiceResult> {
+    const inspection = await buildAssemblyAuthoritative(project.document, assemblyId, { useLinks });
     return okResult("rebuild_assembly", { ...handles(project), data: inspection });
   }
 
@@ -778,6 +789,14 @@ export class AgentCadService {
       },
       project_id: project.meta.project_id,
     });
+  }
+
+  async interferenceUnlocked(project: CadProject, assemblyId: string, minVolumeMm3?: number, instanceIds?: string[]): Promise<ServiceResult> {
+    const result = await checkInterferenceAuthoritative(project.document, assemblyId, {
+      minVolumeMm3,
+      instanceIds,
+    });
+    return okResult("check_interference", { ...handles(project), data: result });
   }
 
   async kernelStatus(): Promise<ServiceResult> {

@@ -55,6 +55,9 @@ export const CAPABILITY_KEYS = [
   "assembly.authoritative",
   "assembly.interference",
   "assembly.nested",
+  "assembly.parallel",
+  "assembly.perpendicular",
+  "assembly.instance_links",
 ] as const;
 
 export type CapabilityKey = (typeof CAPABILITY_KEYS)[number];
@@ -179,8 +182,11 @@ export function freecadCapabilities(opts: {
       "assembly.angle": true,
       "assembly.preview": false,
       "assembly.authoritative": true,
-      "assembly.interference": false,
+      "assembly.interference": true,
       "assembly.nested": false,
+      "assembly.parallel": true,
+      "assembly.perpendicular": true,
+      "assembly.instance_links": false,
     }),
     notes: [
       "Authoritative manufacturing geometry. PartDesign Hole/Fillet/LinearPattern when a body is box + hole/fillet/chamfer/pattern; otherwise CSG.",
@@ -235,6 +241,9 @@ export function jscadCapabilities(opts: { available: boolean; version?: string |
       "assembly.authoritative": false,
       "assembly.interference": false,
       "assembly.nested": false,
+      "assembly.parallel": false,
+      "assembly.perpendicular": false,
+      "assembly.instance_links": false,
     }),
     notes: [
       "Preview mesh and envelope selectors only. Manufacturing exports (STEP/FCStd) go through the authoritative backend.",

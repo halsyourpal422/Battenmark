@@ -361,7 +361,9 @@ export type AssemblyConstraintKind =
   | "align_axes"
   | "concentric"
   | "distance"
-  | "angle";
+  | "angle"
+  | "parallel"
+  | "perpendicular";
 
 export interface AssemblyConstraint {
   id: string;
@@ -455,7 +457,8 @@ export type CadErrorCode =
   | "CONSTRAINT_UNSUPPORTED"
   | "ASSEMBLY_UNSOLVED"
   | "ASSEMBLY_CYCLE"
-  | "ASSEMBLY_LIMIT_EXCEEDED";
+  | "ASSEMBLY_LIMIT_EXCEEDED"
+  | "INTERFERENCE_CHECK_FAILED";
 
 
 export interface CadErrorBody {
@@ -795,5 +798,8 @@ export type Operation =
       b_ref: FaceName | GeometrySelector;
       angle_deg: number;
     }
+  | { op: "set_parallel"; assembly_id: string; a_instance: string; a_ref: FaceName | GeometrySelector; b_instance: string; b_ref: FaceName | GeometrySelector }
+  | { op: "set_perpendicular"; assembly_id: string; a_instance: string; a_ref: FaceName | GeometrySelector; b_instance: string; b_ref: FaceName | GeometrySelector }
+  | { op: "check_interference"; assembly_id: string; min_volume_mm3?: number; instance_ids?: string[] }
   | { op: "remove_constraint"; assembly_id: string; constraint_id: string }
   | { op: "inspect_assembly"; assembly_id: string };
