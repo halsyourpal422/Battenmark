@@ -64,7 +64,7 @@ async function main() {
   await check("build-inspect", async () => {
     inspection = (await buildAssemblyAuthoritative(doc, "bracket_demo")) as Record<string, any>;
     const inst = inspection.instances as Array<Record<string, any>>;
-    assert(inst.length === 2, `instances ${inst.length}`);
+    assert(inst.length === 2, `instances ${inst.length} :: ${JSON.stringify((inspection as any).issues ?? []).slice(0,400)}`);
     const plate = inst.find((i) => i.instance_id === "plate_1")!;
     const bracket = inst.find((i) => i.instance_id === "bracket_1")!;
     assert(plate.valid && bracket.valid, "invalid solids");
@@ -128,7 +128,7 @@ async function main() {
     const rebuilt = await svc.executeTool("rebuild_assembly", { project_id: pid, assembly_id: "imported_asm" });
     assert(rebuilt.ok, JSON.stringify(rebuilt.error));
     const inst = (rebuilt.data as Record<string, any>).instances as Array<Record<string, any>>;
-    assert(inst.length === 2, `instances ${inst.length}`);
+    assert(inst.length === 2, `instances ${inst.length} :: ${JSON.stringify((inspection as any).issues ?? []).slice(0,400)}`);
     for (const i of inst) {
       assert(i.valid && approx(i.volume_mm3, 48000, 1), `${i.instance_id} V=${i.volume_mm3}`);
     }
@@ -162,6 +162,35 @@ async function main() {
     assert(inst.length === 1 && inst[0]!.valid && approx(inst[0]!.volume_mm3, 48000, 1),
       `V=${inst[0]?.volume_mm3} (Tip/visible-result semantics)`);
     return `fcstd import Tip-volume=${inst[0]!.volume_mm3}`;
+  });
+
+  // ---- Blocker B: multi-feature PartDesign FCStd (history dedup) --------------
+  await check("multi-feature-fcstd-tip", async () => {
+    const { getAgentCadService } = await import("../service/agentcad");
+    const svc = getAgentCadService();
+    const proj = (await svc.createProject({ name: "asm-import-multifeature" })) as Record<string, any>;
+    const pid = (proj.data as Record<string, any>).project_id as string;
+    await svc.executeTool("create_box", { project_id: pid, length_mm: 80, width_mm: 50, height_mm: 12, name: "Base" });
+    await svc.executeTool("create_hole", { project_id: pid, body_id: "Body", face: "top_face", centered: true, diameter_mm: 10, through: true });
+    await svc.executeTool("fillet", { project_id: pid, body_id: "Body", radius_mm: 2, edges: "top_perimeter" });
+    const inspD = (await (svc.executeTool("validate", { project_id: pid, kernel: "freecad" }))).data as Record<string, any>;
+    const vFinal = Number((inspD.validation ?? inspD).volume_mm3);
+    assert(vFinal > 0 && vFinal < 48000, `final ${vFinal} should be reduced by hole+fillet (OCC-authoritative)`);
+    const exp = await svc.executeTool("export_fcstd", { project_id: pid });
+    assert(exp.ok, JSON.stringify(exp.error));
+    const fcData = exp.data as Record<string, any>;
+    const fcPath = fcData.path ?? getArtifact(fcData.artifact_id as string)?.path;
+    await svc.executeTool("create_assembly", { project_id: pid, name: "mf_asm" });
+    await svc.executeTool("define_component", { project_id: pid, assembly_id: "mf_asm", component_id: "hist", source_format: "fcstd", source_path: fcPath as string });
+    await svc.executeTool("create_instance", { project_id: pid, assembly_id: "mf_asm", component_id: "hist", instance_id: "h1" });
+    await svc.executeTool("fix_instance", { project_id: pid, assembly_id: "mf_asm", instance_id: "h1" });
+    const rebuilt = await svc.executeTool("rebuild_assembly", { project_id: pid, assembly_id: "mf_asm" });
+    assert(rebuilt.ok, JSON.stringify(rebuilt.error));
+    const inst = (rebuilt.data as Record<string, any>).instances as Array<Record<string, any>>;
+    const vImported = inst[0]?.volume_mm3 ?? -1;
+    assert(approx(vImported, vFinal, 1),
+      `imported ${vImported} != final Tip ${vFinal} — history double-counted`);
+    return `final=${vFinal} imported=${vImported} (<48k: hole+fillet history present, not summed)`;
   });
 
   await check("restart-with-imported", async () => {

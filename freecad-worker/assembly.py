@@ -92,6 +92,7 @@ def _imported_shape(source: dict[str, Any], label: str):
         raise RuntimeError(f"Imported definition '{label}' has no sourcePath")
     if not os.path.isfile(path):
         raise RuntimeError(f"File not found: {path}")
+    compound = None
 
     if fmt == "step":
         import Import  # noqa: WPS433
@@ -100,28 +101,50 @@ def _imported_shape(source: dict[str, Any], label: str):
         try:
             Import.insert(path, tmp.Name)
             solids = _visible_solids(tmp)
+            compound = Part.makeCompound(solids) if solids else None
         finally:
             App.closeDocument(tmp.Name)
     elif fmt == "fcstd":
         opened = App.openDocument(path)
         solids = []
-        for obj in opened.Objects:
-            if obj.TypeId == "PartDesign::Body":
-                tip = getattr(obj, "Tip", None)
-                shape = getattr(tip, "Shape", None) if tip is not None else getattr(obj, "Shape", None)
+        compound = None
+        try:
+            # PartDesign feature objects retain historical shapes. Count each
+            # Body's final Tip once and skip its contained features; standalone
+            # top-level solids outside any Body are still legitimate results.
+            bodies = [o for o in opened.Objects if o.TypeId == "PartDesign::Body"]
+            owned: set[str] = set()
+            for b in bodies:
+                for member in getattr(b, "Group", []) or []:
+                    owned.add(member.Name)
+                tip = getattr(b, "Tip", None)
+                shape = None
+                if tip is not None:
+                    shape = getattr(tip, "Shape", None)
+                if shape is None or shape.isNull():
+                    shape = getattr(b, "Shape", None)
                 if shape is not None and not shape.isNull():
                     for solid in shape.Solids or ([shape] if shape.ShapeType == "Solid" else []):
                         solids.append(solid)
-            elif hasattr(obj, "Shape") and obj.Shape is not None and not obj.Shape.isNull():
-                sh = obj.Shape
-                if sh.ShapeType == "Solid":
-                    solids.append(sh)
+            for obj in opened.Objects:
+                # Body results were taken above; every other PartDesign::* object
+                # is historical feature geometry owned by some Body.
+                if obj.Name in owned or str(obj.TypeId).startswith("PartDesign::"):
+                    continue
+                shape = getattr(obj, "Shape", None)
+                if shape is None or shape.isNull():
+                    continue
+                for solid in shape.Solids or ([shape] if shape.ShapeType == "Solid" else []):
+                    solids.append(solid)
+            compound = Part.makeCompound(solids) if solids else None
+        finally:
+            App.closeDocument(opened.Name)
     else:
         raise RuntimeError(f"Unsupported import format '{fmt}' for assemblies")
 
-    if not solids:
+    if not solids or compound is None:
         raise RuntimeError(f"Imported definition '{label}' produced no solids")
-    return Part.makeCompound(solids)
+    return compound
 
 
 def _visible_solids(doc):
