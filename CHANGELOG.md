@@ -26,6 +26,22 @@ First public release. Ships the Phase 5.5.1 verified universal CAD foundation:
 The internal engineering version (`CAD_SERVICE_VERSION = "0.5.6"`) is retained by
 design; see docs/VERSIONING.md.
 
+## Unreleased — Phase 6 (assemblies)
+
+Backend-neutral assemblies on the frozen foundation:
+
+- `create_assembly`, `define_component`, `create_instance`, `fix_instance`,
+  `set_instance_transform`, `set_definition_parameter`, `mate_faces`,
+  `align_axes` (+`concentric`), `set_distance`, `set_angle`,
+  `remove_constraint`, `inspect_assembly`.
+- Deterministic rigid resolver with honest state reporting
+  (`applied/redundant/deferred`, remaining-DOF, world bbox).
+- Authoritative FreeCAD output: `App::Part` hierarchy, per-instance placements,
+  volumes preserved; FCStd + STEP export.
+- Assembly preview rendering at solved transforms.
+- Schema stays 2 (additive `assemblies[]`); new error codes
+  (`ASSEMBLY_*`, `CONSTRAINT_*`); granular `assembly.*` capabilities.
+
 ## 0.5.6 — Phase 5.5.1
 
 Backend registry, open backend IDs, dynamic roles, synthetic `mockcad` pluggability proof, foundation freeze.

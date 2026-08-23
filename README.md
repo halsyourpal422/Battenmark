@@ -94,6 +94,9 @@ verified through JSCAD, FreeCAD, HTTP, CLI, MCP and the Python client
 - STEP / FCStd / STL interchange · four-view PNG previews
 - Dynamic backend registry with per-backend capability discovery
 - One serialized FreeCAD worker with kill/restart recovery
+- **Assemblies**: component definitions, persistent instances, grounded frames,
+  face mates, axis/concentric alignment, distance & angle constraints
+  (see docs/ASSEMBLIES.md)
 
 ## Platform status
 
