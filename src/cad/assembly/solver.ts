@@ -362,8 +362,19 @@ function pairKey(c: AssemblyConstraint): string | null {
     .join("|");
 }
 
+/** Deterministic canonical serialization: object keys sorted, arrays ordered. */
+function stableStringify(value: unknown): string {
+  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
+  if (Array.isArray(value)) return `[${value.map(stableStringify).join(",")}]`;
+  const obj = value as Record<string, unknown>;
+  return `{${Object.keys(obj).sort().map((k) => `${JSON.stringify(k)}:${stableStringify(obj[k])}`).join(",")}}`;
+}
+
+/** Canonical model-level reference identity: type-prefixed, order-independent,
+ *  never dependent on JS object string coercion. */
 function refLabel(r: AssemblyRef): string {
-  return String(r.face ?? r.axis ?? "?");
+  if (r.axis !== undefined) return `axis:${typeof r.axis === "string" ? r.axis : stableStringify(r.axis)}`;
+  return `face:${typeof r.face === "string" ? r.face : stableStringify(r.face)}`;
 }
 
 function checkConflicts(asm: Assembly): void {

@@ -369,6 +369,53 @@ function main() {
     expectOpError(doc, { op: "inspect_assembly", assembly_id: "gl" } as Operation, "GEOMETRY_REFERENCE_LOST");
   });
 
+  // ---- R/S. structured-reference identity (merge-gate Blocker A) ----------------
+  const structSel = (side: "neg" | "pos") => ({ entity: "face" as const, selector: side === "neg" ? "normal_negative_x" : "normal_positive_x", unique: true });
+
+  run("R-distinct-keys", "distinct structured refs must not collide", () => {
+    let doc = emptyDocument("refkey");
+    doc = apply(doc, [
+      { op: "create_box", name: "Base", length_mm: 100, width_mm: 60, height_mm: 10 },
+      { op: "create_body", name: "MB" },
+      { op: "create_box", body_id: "MB", name: "Mv", length_mm: 20, width_mm: 20, height_mm: 10 },
+      { op: "create_assembly", name: "rk" },
+      { op: "define_component", assembly_id: "rk", component_id: "base", include: { body_ids: ["Body"] } },
+      { op: "define_component", assembly_id: "rk", component_id: "mover", include: { body_ids: ["MB"] } },
+      { op: "create_instance", assembly_id: "rk", component_id: "base", instance_id: "b1" },
+      { op: "fix_instance", assembly_id: "rk", instance_id: "b1" },
+      { op: "create_instance", assembly_id: "rk", component_id: "mover", instance_id: "m1" },
+      { op: "set_distance", assembly_id: "rk", a_instance: "b1", a_ref: structSel("neg"), b_instance: "m1", b_ref: "bottom_face", distance_mm: 10 },
+      { op: "set_distance", assembly_id: "rk", a_instance: "b1", a_ref: structSel("pos"), b_instance: "m1", b_ref: "bottom_face", distance_mm: 25 },
+    ]);
+    const data = inspectData(doc, "rk") as { solved: boolean; constraints: Array<{ id: string; status: string }> };
+    assert(data.solved, `false conflict from key collision: ${JSON.stringify(data.constraints)}`);
+    return "distinct nearest-selectors keep distinct identities";
+  });
+
+  run("S-same-key-conflict", "identical structured refs still conflict", () => {
+    let doc = emptyDocument("refkey2");
+    doc = apply(doc, [
+      { op: "create_box", name: "Base", length_mm: 100, width_mm: 20, height_mm: 10 },
+      { op: "create_body", name: "MB" },
+      { op: "create_box", body_id: "MB", name: "Mv", length_mm: 20, width_mm: 20, height_mm: 10 },
+      { op: "create_assembly", name: "rk2" },
+      { op: "define_component", assembly_id: "rk2", component_id: "base", include: { body_ids: ["Body"] } },
+      { op: "define_component", assembly_id: "rk2", component_id: "mover", include: { body_ids: ["MB"] } },
+      { op: "create_instance", assembly_id: "rk2", component_id: "base", instance_id: "b1" },
+      { op: "fix_instance", assembly_id: "rk2", instance_id: "b1" },
+      { op: "create_instance", assembly_id: "rk2", component_id: "mover", instance_id: "m1" },
+      { op: "set_distance", assembly_id: "rk2", a_instance: "b1", a_ref: structSel("neg"), b_instance: "m1", b_ref: "bottom_face", distance_mm: 10 },
+    ]);
+    doc = apply(doc, [{
+      op: "set_distance",
+      assembly_id: "rk2",
+      a_instance: "b1", a_ref: { unique: true, entity: "face", selector: "normal_negative_x" },
+      b_instance: "m1", b_ref: "bottom_face",
+      distance_mm: 20,
+    } as Operation]);
+    expectOpError(doc, { op: "inspect_assembly", assembly_id: "rk2" } as Operation, "CONSTRAINT_CONFLICT");
+  });
+
   let failed = 0;
   for (const r of out) if (!r.passed) failed += 1;
   console.log(`\n${out.length - failed}/${out.length} assembly unit tests passed`);
