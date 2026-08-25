@@ -1,0 +1,12 @@
+{
+  "id": "assembly-planar-001",
+  "skill": "assembly",
+  "version": "1.0.0",
+  "title": "Two-block planar mate with DOF inspection",
+  "task": "Create project 'eval-assembly'. Create two boxes: Anchor 60×40×10 and Mover 30×30×12 as separate bodies. Create an assembly, define a component for each body, create instances a1 and b1. Ground a1 with fix_instance. Apply mate_faces between a1.top_face and b1.bottom_face. Call inspect_assembly and report remaining DOF for the moving instance. Call check_interference. Export the assembly. Do not add redundant constraints.",
+  "required_checks": ["project_created", "components_defined", "instances_created", "reference_grounded", "constraint_applied", "inspect_assembly_called", "remaining_dof_3", "interference_checked", "artifact_exported", "no_overconstraint", "public_ops_only"],
+  "hard_failures": ["wrong_dof", "constraint_conflict", "ungrounded_reference", "schema_bypass", "missing_export_claim"],
+  "weights": {"task_correctness": 40, "verification_discipline": 25, "api_schema_correctness": 15, "recovery_behavior": 10, "efficiency": 10},
+  "verification_gates": ["inspect_assembly", "check_interference", "export"],
+  "fixture": {"expected_remaining_dof": 3, "expected_free_translation": ["x", "y"], "expected_free_rotation": ["about_z"]}
+}

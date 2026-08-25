@@ -81,6 +81,7 @@ scripts/*
 !scripts/install-freecad.sh
 !scripts/interop/
 !scripts/skills/
+!scripts/evals/
 
 # Test workspaces
 /tmp/

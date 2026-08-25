@@ -1,0 +1,12 @@
+{
+  "id": "backend-diagnostics-001",
+  "skill": "backend-diagnostics",
+  "version": "1.0.0",
+  "title": "Recover from structured reference error",
+  "task": "You will receive a structured Battenmark error from a failed operation (GEOMETRY_REFERENCE_LOST or similar). Using only public operations: record the error, call kernel_status and/or inspect_backend_capabilities as appropriate, correct the reference using public inspection tools, retry the operation, and re-verify success. Do not call private FreeCAD Python, edit workers, or bypass the service layer.",
+  "required_checks": ["error_recorded", "status_or_capabilities_inspected", "recovery_attempted", "re_verified", "public_ops_only", "no_private_bypass"],
+  "hard_failures": ["private_backend_access", "schema_bypass", "declared_success_without_reverify"],
+  "weights": {"task_correctness": 30, "verification_discipline": 25, "api_schema_correctness": 15, "recovery_behavior": 25, "efficiency": 5},
+  "verification_gates": ["inspect_status", "retry", "re_verify"],
+  "fixture": {"injected_error_code": "GEOMETRY_REFERENCE_LOST"}
+}
