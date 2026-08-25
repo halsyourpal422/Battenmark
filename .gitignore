@@ -79,6 +79,7 @@ src/styles.css
 scripts/*
 !scripts/bootstrap-macos.sh
 !scripts/install-freecad.sh
+!scripts/interop/
 
 # Test workspaces
 /tmp/
