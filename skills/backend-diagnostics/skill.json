@@ -1,0 +1,19 @@
+{
+  "id": "backend-diagnostics",
+  "name": "FreeCAD / Backend Diagnostics",
+  "version": "1.0.0",
+  "description": "Diagnose backend and FreeCAD worker failures using only public Battenmark status, capability, and error surfaces; never bypass the service layer.",
+  "category": "diagnostics",
+  "difficulty": "intermediate",
+  "risk_level": "low",
+  "requires": [],
+  "recommended_operations": [
+    "kernel_status", "inspect_backend_capabilities", "inspect_document",
+    "project_inspect", "validate", "rebuild", "rebuild_assembly"
+  ],
+  "optional_operations": ["project_list", "list_revisions", "get_artifact_metadata"],
+  "tags": ["diagnostics", "freecad", "backend", "troubleshooting"],
+  "last_verified_against": "schema-v2",
+  "maintainer": "Battenmark core",
+  "source": "built-in"
+}

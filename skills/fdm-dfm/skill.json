@@ -1,0 +1,19 @@
+{
+  "id": "fdm-dfm",
+  "name": "FDM Design-for-Manufacturing",
+  "version": "1.0.0",
+  "description": "Review a finished or near-finished model for consumer FDM printability, separating general geometric principles from printer/material-specific recommendations.",
+  "category": "manufacturing",
+  "difficulty": "intermediate",
+  "risk_level": "low",
+  "requires": [],
+  "recommended_operations": [
+    "inspect_document", "inspect_body", "query_geometry", "inspect_faces", "inspect_edges",
+    "render_preview", "validate", "export_stl", "export_3mf", "export_step"
+  ],
+  "optional_operations": ["fillet", "chamfer", "set_parameter", "rebuild", "save_revision"],
+  "tags": ["fdm", "dfm", "printability", "manufacturing"],
+  "last_verified_against": "schema-v2",
+  "maintainer": "Battenmark core",
+  "source": "built-in"
+}
