@@ -63,7 +63,10 @@
     "interop:hermes": "node scripts/interop/hermes.mjs",
     "interop:agent-zero": "node scripts/interop/agent-zero.mjs",
     "skills:validate": "npx tsx scripts/skills/validate.mjs",
-    "skills:validate:test": "npx tsx scripts/skills/validate-test.mjs"
+    "skills:validate:test": "npx tsx scripts/skills/validate-test.mjs",
+    "eval:skills": "npx tsx scripts/evals/run.mjs",
+    "eval:skills:reference": "npx tsx scripts/evals/run.mjs --mode reference",
+    "eval:skills:score": "npx tsx scripts/evals/score-test.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
