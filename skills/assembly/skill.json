@@ -1,0 +1,24 @@
+{
+  "id": "assembly",
+  "name": "Mechanical Assembly",
+  "version": "1.0.0",
+  "description": "Build and constrain multi-part assemblies using Battenmark component definitions, instances, incremental mates, DOF inspection, and interference checks.",
+  "category": "assembly",
+  "difficulty": "intermediate",
+  "risk_level": "low",
+  "requires": ["assembly"],
+  "recommended_operations": [
+    "project_create", "project_open", "inspect_document", "create_body", "create_box", "create_cylinder",
+    "define_parameter", "validate", "create_assembly", "define_component", "create_instance",
+    "fix_instance", "mate_faces", "align_axes", "set_distance", "set_angle", "set_parallel",
+    "set_perpendicular", "inspect_assembly", "check_interference", "remove_constraint",
+    "rebuild_assembly", "export_assembly", "render_preview", "save_revision"
+  ],
+  "optional_operations": [
+    "set_instance_transform", "import_step", "import_fcstd", "export_step", "export_fcstd"
+  ],
+  "tags": ["assembly", "constraints", "dof", "mates"],
+  "last_verified_against": "schema-v2",
+  "maintainer": "Battenmark core",
+  "source": "built-in"
+}

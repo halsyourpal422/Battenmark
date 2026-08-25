@@ -1,0 +1,16 @@
+{
+  "id": "template-skill",
+  "name": "Template Skill",
+  "version": "1.0.0",
+  "description": "Copy this directory; replace every field. Not a runnable skill.",
+  "category": "workflow",
+  "difficulty": "beginner",
+  "risk_level": "low",
+  "requires": [],
+  "recommended_operations": ["project_create", "inspect_document", "validate", "render_preview"],
+  "optional_operations": [],
+  "tags": ["template"],
+  "last_verified_against": "schema-v2",
+  "maintainer": "Battenmark core",
+  "source": "built-in"
+}
