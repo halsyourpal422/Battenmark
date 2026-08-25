@@ -1,0 +1,12 @@
+{
+  "id": "basic-part-001",
+  "skill": "basic-part",
+  "version": "1.0.0",
+  "title": "Parametric plate with mounting hole",
+  "task": "Create a new Battenmark project named 'eval-basic-part'. Define parameters length=80, width=50, thickness=8, hole_d=5. Create a rectangular box using those parameters (min-corner origin). Add one through-hole of diameter hole_d on the top face, inset 10 mm from the min-corner edges. Validate the document, render a preview, and export an authoritative STEP (or FCStd) artifact. Units are millimetres.",
+  "required_checks": ["project_created", "parameters_defined", "box_created", "feature_applied", "validated", "preview_rendered", "artifact_exported", "no_schema_errors", "public_ops_only"],
+  "hard_failures": ["invalid_final_solid", "schema_bypass", "private_backend_access", "missing_export_claim"],
+  "weights": {"task_correctness": 40, "verification_discipline": 25, "api_schema_correctness": 15, "recovery_behavior": 10, "efficiency": 10},
+  "verification_gates": ["validate", "render_preview", "export"],
+  "fixture": {"length_mm": 80, "width_mm": 50, "thickness_mm": 8, "hole_d_mm": 5, "hole_inset_mm": 10}
+}
