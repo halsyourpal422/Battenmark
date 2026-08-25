@@ -1,0 +1,24 @@
+{
+  "id": "basic-part",
+  "name": "Basic Parametric Part",
+  "version": "1.0.0",
+  "description": "Create a simple dimensioned solid, apply common features, inspect, preview, and export through Battenmark public operations.",
+  "category": "modeling",
+  "difficulty": "beginner",
+  "risk_level": "low",
+  "requires": [],
+  "recommended_operations": [
+    "project_create", "project_open", "inspect_document", "define_parameter", "set_parameter",
+    "create_body", "create_box", "create_cylinder", "create_hole", "fillet", "chamfer", "boolean",
+    "rename_feature", "validate", "save_revision", "rebuild", "render_preview",
+    "export_step", "export_fcstd", "inspect_body", "query_geometry"
+  ],
+  "optional_operations": [
+    "create_sketch", "pad", "pocket", "create_pattern", "inspect_edges", "inspect_faces",
+    "list_revisions", "export_stl", "export_3mf"
+  ],
+  "tags": ["parametric", "part", "beginner"],
+  "last_verified_against": "schema-v2",
+  "maintainer": "Battenmark core",
+  "source": "built-in"
+}
