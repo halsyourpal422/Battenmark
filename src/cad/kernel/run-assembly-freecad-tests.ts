@@ -317,6 +317,121 @@ async function main() {
     return `100 App::Link instances (defs=1), rebuild ${ms} ms, fallback path verified`;
   });
 
+  // ================= Phase 6.1.1: six-state DOF goldens via public service path ====
+  await check("p611-dof-goldens-public-path", async () => {
+    const { getAgentCadService } = await import("../service/agentcad");
+    const svc = getAgentCadService();
+    const eqSets = (a: string[], b: string[]) => JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+    async function op(pid: string, tool: string, args: Record<string, unknown> = {}): Promise<Record<string, any>> {
+      const r = await svc.executeTool(tool, { project_id: pid, ...args });
+      if (!r.ok) throw new Error(`${tool}: ${JSON.stringify(r.error).slice(0, 300)}`);
+      return (r.data ?? {}) as Record<string, any>;
+    }
+    async function pidFor(name: string): Promise<string> {
+      const proj = (await svc.createProject({ name })) as Record<string, any>;
+      return (proj.data as Record<string, any>).project_id as string;
+    }
+    async function moverDof(pid: string, asm: string, iid: string) {
+      const d = await op(pid, "inspect_assembly", { assembly_id: asm });
+      const inst = (d.instances as Array<Record<string, any>>).find((x) => x.id === iid)!;
+      return {
+        dof: Number(inst.remaining_dof),
+        ft: (inst.free_translation ?? []) as string[],
+        fr: (inst.free_rotation ?? []) as string[],
+        state: d.constraint_state as string,
+        t: inst.transform?.translation as { x: number; y: number; z: number } | undefined,
+      };
+    }
+    const notes: string[] = [];
+
+    {
+      const pid = await pidFor("p611-free-fixed");
+      await op(pid, "create_box", { length_mm: 60, width_mm: 40, height_mm: 10, name: "Anchor" });
+      await op(pid, "create_body", { name: "MoverBody" });
+      await op(pid, "create_box", { body_id: "MoverBody", length_mm: 30, width_mm: 30, height_mm: 12, name: "Mover" });
+      await op(pid, "create_assembly", { name: "ff" });
+      await op(pid, "define_component", { assembly_id: "ff", component_id: "a", include: { body_ids: ["Body"] } });
+      await op(pid, "define_component", { assembly_id: "ff", component_id: "b", include: { body_ids: ["MoverBody"] } });
+      await op(pid, "create_instance", { assembly_id: "ff", component_id: "a", instance_id: "a1" });
+      await op(pid, "fix_instance", { assembly_id: "ff", instance_id: "a1" });
+      await op(pid, "create_instance", { assembly_id: "ff", component_id: "b", instance_id: "b1" });
+      let m = await moverDof(pid, "ff", "b1");
+      assert(m.dof === 6 && eqSets(m.ft, ["x", "y", "z"]) && eqSets(m.fr, ["about_x", "about_y", "about_z"]),
+        `free golden via public path: ${JSON.stringify(m)}`);
+      await op(pid, "fix_instance", { assembly_id: "ff", instance_id: "b1" });
+      m = await moverDof(pid, "ff", "b1");
+      assert(m.dof === 0 && m.ft.length === 0 && m.fr.length === 0, `fixed golden: ${JSON.stringify(m)}`);
+      notes.push("free=6 fixed=0");
+    }
+
+    {
+      const pid = await pidFor("p611-planar");
+      await op(pid, "create_box", { length_mm: 60, width_mm: 40, height_mm: 10, name: "Anchor" });
+      await op(pid, "create_body", { name: "MoverBody" });
+      await op(pid, "create_box", { body_id: "MoverBody", length_mm: 30, width_mm: 30, height_mm: 12, name: "Mover" });
+      await op(pid, "create_assembly", { name: "pp" });
+      await op(pid, "define_component", { assembly_id: "pp", component_id: "a", include: { body_ids: ["Body"] } });
+      await op(pid, "define_component", { assembly_id: "pp", component_id: "b", include: { body_ids: ["MoverBody"] } });
+      await op(pid, "create_instance", { assembly_id: "pp", component_id: "a", instance_id: "a1" });
+      await op(pid, "fix_instance", { assembly_id: "pp", instance_id: "a1" });
+      await op(pid, "create_instance", { assembly_id: "pp", component_id: "b", instance_id: "b1" });
+      await op(pid, "mate_faces", { assembly_id: "pp", a_instance: "a1", a_face: "top_face", b_instance: "b1", b_face: "bottom_face" });
+      const m = await moverDof(pid, "pp", "b1");
+      assert(m.dof === 3 && eqSets(m.ft, ["x", "y"]) && eqSets(m.fr, ["about_z"]), `planar: ${JSON.stringify(m)}`);
+      notes.push("planar=3");
+    }
+
+    {
+      const pid = await pidFor("p611-conc-stop");
+      await op(pid, "create_box", { length_mm: 80, width_mm: 50, height_mm: 12, name: "P" });
+      await op(pid, "create_hole", { body_id: "Body", face: "top_face", x_mm: 20, y_mm: 25, diameter_mm: 8, through: true, name: "pin_hole" });
+      await op(pid, "create_body", { name: "PinBody" });
+      await op(pid, "create_cylinder", { body_id: "PinBody", radius_mm: 4, height_mm: 24, name: "Pin" });
+      await op(pid, "create_body", { name: "TabBody" });
+      await op(pid, "create_box", { body_id: "TabBody", length_mm: 10, width_mm: 10, height_mm: 6, name: "Shoulder" });
+      await op(pid, "create_assembly", { name: "cs" });
+      await op(pid, "define_component", { assembly_id: "cs", component_id: "plate" });
+      await op(pid, "define_component", { assembly_id: "cs", component_id: "pin", include: { body_ids: ["PinBody", "TabBody"] } });
+      await op(pid, "create_instance", { assembly_id: "cs", component_id: "plate", instance_id: "plate_1" });
+      await op(pid, "fix_instance", { assembly_id: "cs", instance_id: "plate_1" });
+      await op(pid, "create_instance", { assembly_id: "cs", component_id: "pin", instance_id: "pin_1" });
+      await op(pid, "align_axes", { assembly_id: "cs", a_instance: "plate_1", a_axis: "pin_hole", b_instance: "pin_1", b_axis: "PinBody", concentric: true });
+      let m = await moverDof(pid, "cs", "pin_1");
+      assert(m.dof === 2 && eqSets(m.ft, ["z"]) && eqSets(m.fr, ["about_z"]), `concentric: ${JSON.stringify(m)}`);
+      await op(pid, "set_distance", { assembly_id: "cs", a_instance: "plate_1", a_ref: "bottom_face", b_instance: "pin_1", b_ref: "bottom_face", distance_mm: 12 });
+      m = await moverDof(pid, "cs", "pin_1");
+      assert(m.dof === 1 && m.ft.length === 0 && eqSets(m.fr, ["about_z"]), `stop: ${JSON.stringify(m)}`);
+      assert(m.t !== undefined && Math.abs(m.t.x - 20) < 1e-6 && Math.abs(m.t.y - 25) < 1e-6 && Math.abs(m.t.z) > 0,
+        `stop must slide along axis preserving xy: ${JSON.stringify(m.t)}`);
+      notes.push("conc=2->stop=1");
+    }
+
+    {
+      const pid = await pidFor("p611-full");
+      await op(pid, "create_box", { length_mm: 100, width_mm: 60, height_mm: 10, name: "Plate" });
+      await op(pid, "create_body", { name: "BracketBody" });
+      await op(pid, "create_box", { body_id: "BracketBody", length_mm: 60, width_mm: 10, height_mm: 50, name: "Bracket" });
+      await op(pid, "create_assembly", { name: "fc" });
+      await op(pid, "define_component", { assembly_id: "fc", component_id: "plate" });
+      await op(pid, "define_component", { assembly_id: "fc", component_id: "bracket", include: { body_ids: ["BracketBody"] } });
+      await op(pid, "create_instance", { assembly_id: "fc", component_id: "plate", instance_id: "p1" });
+      await op(pid, "fix_instance", { assembly_id: "fc", instance_id: "p1" });
+      await op(pid, "create_instance", { assembly_id: "fc", component_id: "bracket", instance_id: "br1" });
+      await op(pid, "mate_faces", { assembly_id: "fc", a_instance: "p1", a_face: "top_face", b_instance: "br1", b_face: "bottom_face" });
+      await op(pid, "set_parallel", { assembly_id: "fc", a_instance: "p1", a_ref: "front_face", b_instance: "br1", b_ref: "front_face" });
+      await op(pid, "set_distance", { assembly_id: "fc", a_instance: "p1", a_ref: "right_face", b_instance: "br1", b_ref: "left_face", distance_mm: 15 });
+      await op(pid, "set_distance", { assembly_id: "fc", a_instance: "p1", a_ref: "back_face", b_instance: "br1", b_ref: "back_face", distance_mm: 0 });
+      const m = await moverDof(pid, "fc", "br1");
+      assert(m.dof === 0 && m.ft.length === 0 && m.fr.length === 0 && m.state === "fully_constrained",
+        `fully constrained: ${JSON.stringify(m)}`);
+      assert(m.t !== undefined && Math.abs(m.t.x - 115) < 1e-6 && Math.abs(m.t.y) < 1e-6 && Math.abs(m.t.z - 10) < 1e-6,
+        `deterministic placement: ${JSON.stringify(m.t)}`);
+      notes.push("full=0@(115,0,10)");
+    }
+
+    return `public-path goldens: ${notes.join(", ")}`;
+  });
+
   try {
     await worker.request("shutdown", {}, 5_000);
   } catch { /* ignore */ }

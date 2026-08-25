@@ -5,7 +5,7 @@
 import { emptyDocument } from "./document";
 import { applyAll, applyOperation } from "./operations";
 import type { CadDocument as Doc, Operation } from "./types";
-import { SOLVER_TOLERANCES, constraintRows } from "./assembly/solver";
+import { SOLVER_TOLERANCES, constraintRows, translationRow, rotationRow, rank6 } from "./assembly/solver";
 
 function apply(doc0: Doc, ops: Operation[]): Doc {
   const r = applyAll(doc0, ops);
@@ -486,23 +486,176 @@ function main() {
     expectOpError(doc, { op: "inspect_assembly", assembly_id: "cf" } as Operation, "CONSTRAINT_CONFLICT");
   });
 
-  // ---- DOF golden fixtures A–F -------------------------------------------------
-  function pinAssemblyDoc(): Doc {
-    let doc = emptyDocument("dof-pin");
-    doc = apply(doc, [
+  // ---- Phase 6.1.1: permanent six-state DOF golden fixtures --------------------
+  // Each fixture asserts remaining_dof AND the mechanically meaningful free-axis
+  // sets through the same inspect_assembly diagnostics agents consume.
+  function sortedEq(a: string[], b: string[]): boolean {
+    return JSON.stringify([...a].sort()) === JSON.stringify([...b].sort());
+  }
+
+  interface DofGolden { dof: number; freeT: string[]; freeR: string[] }
+
+  function expectDofGolden(doc: Doc, assemblyId: string, instanceId: string, want: DofGolden, state?: string): string {
+    const d = inspectData(doc, assemblyId) as any;
+    const inst = d.instances.find((i: any) => i.id === instanceId);
+    assert(inst, `instance ${instanceId} missing`);
+    const gotT = (inst.free_translation ?? []) as string[];
+    const gotR = (inst.free_rotation ?? []) as string[];
+    assert(Number(inst.remaining_dof) === want.dof,
+      `remaining_dof=${inst.remaining_dof} want=${want.dof} state=${d.constraint_state}`);
+    assert(sortedEq(gotT, want.freeT),
+      `free_translation=[${gotT.join(",")}] want=[${want.freeT.join(",")}]`);
+    assert(sortedEq(gotR, want.freeR),
+      `free_rotation=[${gotR.join(",")}] want=[${want.freeR.join(",")}]`);
+    if (state !== undefined) {
+      assert(d.constraint_state === state, `constraint_state=${d.constraint_state} want=${state}`);
+    }
+    return `dof=${inst.remaining_dof} freeT=[${gotT.join(",")}] freeR=[${gotR.join(",")}]`;
+  }
+
+  function twoBoxDofDoc(tag: string): { doc: Doc; asm: string; anchor: string; mover: string } {
+    const asm = `${tag}_asm`;
+    const doc = apply(emptyDocument(tag), [
+      { op: "create_box", name: "Anchor", length_mm: 60, width_mm: 40, height_mm: 10 },
+      { op: "create_body", name: "MoverBody" },
+      { op: "create_box", body_id: "MoverBody", name: "Mover", length_mm: 30, width_mm: 30, height_mm: 12 },
+      { op: "create_assembly", name: asm },
+      { op: "define_component", assembly_id: asm, component_id: "a", include: { body_ids: ["Body"] } },
+      { op: "define_component", assembly_id: asm, component_id: "b", include: { body_ids: ["MoverBody"] } },
+      { op: "create_instance", assembly_id: asm, component_id: "a", instance_id: "a1" },
+      { op: "fix_instance", assembly_id: asm, instance_id: "a1" },
+      { op: "create_instance", assembly_id: asm, component_id: "b", instance_id: "b1" },
+    ]);
+    return { doc, asm, anchor: "a1", mover: "b1" };
+  }
+
+  // The shoulder tab gives the pin component a canonical named planar face:
+  // pure cylinders expose none, so an axial stop has nothing to reference.
+  function pinPlateDofDoc(tag: string, withShoulder: boolean): { doc: Doc; asm: string; pin: string } {
+    const asm = `${tag}_asm`;
+    const ops: Operation[] = [
       { op: "create_box", name: "P", length_mm: 80, width_mm: 50, height_mm: 12 },
       { op: "create_hole", body_id: "Body", face: "top_face", x_mm: 20, y_mm: 25, diameter_mm: 8, through: true, name: "pin_hole" },
       { op: "create_body", name: "PinBody" },
       { op: "create_cylinder", body_id: "PinBody", name: "Pin", radius_mm: 4, height_mm: 24 },
-      { op: "create_assembly", name: "dof" },
-      { op: "define_component", assembly_id: "dof", component_id: "plate", include: { body_ids: ["Body"] } },
-      { op: "define_component", assembly_id: "dof", component_id: "pin", include: { body_ids: ["PinBody"] } },
-      { op: "create_instance", assembly_id: "dof", component_id: "plate", instance_id: "plate_1" },
-      { op: "fix_instance", assembly_id: "dof", instance_id: "plate_1" },
-      { op: "create_instance", assembly_id: "dof", component_id: "pin", instance_id: "pin_1" },
-    ]);
-    return doc;
+    ];
+    if (withShoulder) {
+      ops.push({ op: "create_body", name: "TabBody" });
+      ops.push({ op: "create_box", body_id: "TabBody", length_mm: 10, width_mm: 10, height_mm: 6, name: "Shoulder" });
+    }
+    ops.push(
+      { op: "create_assembly", name: asm },
+      { op: "define_component", assembly_id: asm, component_id: "plate" },
+      { op: "define_component", assembly_id: asm, component_id: "pin", include: withShoulder ? { body_ids: ["PinBody", "TabBody"] } : { body_ids: ["PinBody"] } },
+      { op: "create_instance", assembly_id: asm, component_id: "plate", instance_id: "plate_1" },
+      { op: "fix_instance", assembly_id: asm, instance_id: "plate_1" },
+      { op: "create_instance", assembly_id: asm, component_id: "pin", instance_id: "pin_1" },
+    );
+    return { doc: apply(emptyDocument(tag), ops), asm, pin: "pin_1" };
   }
+
+  run("DofA-free", "completely free instance = 6 DOF across [Tx,Ty,Tz,Rx,Ry,Rz]", () => {
+    const { doc, asm, mover } = twoBoxDofDoc("dof-free");
+    const d = inspectData(doc, asm) as any;
+    assert((d.constraints ?? []).every((c: any) => c.kind === "fixed"),
+      "fixture must start grounded-only, without mate constraints");
+    return expectDofGolden(doc, asm, mover, { dof: 6, freeT: ["x", "y", "z"], freeR: ["about_x", "about_y", "about_z"] }, "underconstrained");
+  });
+
+  run("DofB-fixed", "fixed instance = 0 DOF, no free directions, fully constrained", () => {
+    const { doc, asm, mover } = twoBoxDofDoc("dof-fixed");
+    const fixed = apply(doc, [{ op: "fix_instance", assembly_id: asm, instance_id: mover }]);
+    return expectDofGolden(fixed, asm, mover, { dof: 0, freeT: [], freeR: [] }, "fully_constrained");
+  });
+
+  run("DofC-planar", "planar mate = 3 DOF; mate normal z locked, tilts locked", () => {
+    const { doc, asm, anchor, mover } = twoBoxDofDoc("dof-planar");
+    const mated = apply(doc, [
+      { op: "mate_faces", assembly_id: asm, a_instance: anchor, a_face: "top_face", b_instance: mover, b_face: "bottom_face" },
+    ]);
+    const d = inspectData(mated, asm) as any;
+    const inst = d.instances.find((i: any) => i.id === mover);
+    assert(!inst.free_translation.includes("z"), "mate normal z must not remain free");
+    assert(!inst.free_rotation.includes("about_x") && !inst.free_rotation.includes("about_y"),
+      "tilt freedoms about x/y must be removed by the mate");
+    return expectDofGolden(mated, asm, mover, { dof: 3, freeT: ["x", "y"], freeR: ["about_z"] });
+  });
+
+  run("DofD-concentric", "concentric pin-in-hole = 2 DOF (slide + spin about axis)", () => {
+    const { doc, asm, pin } = pinPlateDofDoc("dof-conc", false);
+    const aligned = apply(doc, [
+      { op: "align_axes", assembly_id: asm, a_instance: "plate_1", a_axis: "pin_hole", b_instance: pin, b_axis: "PinBody", concentric: true },
+    ]);
+    const d = inspectData(aligned, asm) as any;
+    const t = d.instances.find((i: any) => i.id === pin).transform.translation;
+    assert(Math.abs(t.x - 20) < 1e-6 && Math.abs(t.y - 25) < 1e-6,
+      `axis slide must seat pin over hole center (20,25): (${t.x},${t.y})`);
+    return expectDofGolden(aligned, asm, pin, { dof: 2, freeT: ["z"], freeR: ["about_z"] });
+  });
+
+  run("DofE-stop-transition", "axial stop transition: concentric 2 DOF -> stop 1 DOF", () => {
+    const { doc, asm, pin } = pinPlateDofDoc("dof-stop", true);
+    let cur = apply(doc, [
+      { op: "align_axes", assembly_id: asm, a_instance: "plate_1", a_axis: "pin_hole", b_instance: pin, b_axis: "PinBody", concentric: true },
+    ]);
+    expectDofGolden(cur, asm, pin, { dof: 2, freeT: ["z"], freeR: ["about_z"] });
+    cur = apply(cur, [
+      { op: "set_distance", assembly_id: asm, a_instance: "plate_1", a_ref: "bottom_face", b_instance: pin, b_ref: "bottom_face", distance_mm: 12 },
+    ]);
+    const detail = expectDofGolden(cur, asm, pin, { dof: 1, freeT: [], freeR: ["about_z"] });
+    const d = inspectData(cur, asm) as any;
+    const t = d.instances.find((i: any) => i.id === pin).transform.translation;
+    assert(Math.abs(t.x - 20) < 1e-6 && Math.abs(t.y - 25) < 1e-6 && Math.abs(t.z) > 0,
+      `stop must translate along axis while preserving xy seating: (${t.x},${t.y},${t.z})`);
+    return detail;
+  });
+
+  run("DofF-fully-constrained", "fully constrained bracket = 0 DOF, deterministic placement", () => {
+    // Plate spans x[0,100] y[0,60] z[0,10]; right→left gap 15 seats bracket x=115;
+    // back/back distance 0 aligns y=0; mate seats z=10. Solver is deterministic by contract
+    // (J-determinism), so this placement is intentional, not incidental.
+    const asm = "dof_full_asm";
+    const doc = apply(emptyDocument("dof-full"), [
+      { op: "create_box", name: "Plate", length_mm: 100, width_mm: 60, height_mm: 10 },
+      { op: "create_body", name: "BracketBody" },
+      { op: "create_box", body_id: "BracketBody", name: "Bracket", length_mm: 60, width_mm: 10, height_mm: 50 },
+      { op: "create_assembly", name: asm },
+      { op: "define_component", assembly_id: asm, component_id: "plate" },
+      { op: "define_component", assembly_id: asm, component_id: "bracket", include: { body_ids: ["BracketBody"] } },
+      { op: "create_instance", assembly_id: asm, component_id: "plate", instance_id: "p1" },
+      { op: "fix_instance", assembly_id: asm, instance_id: "p1" },
+      { op: "create_instance", assembly_id: asm, component_id: "bracket", instance_id: "br1" },
+      { op: "mate_faces", assembly_id: asm, a_instance: "p1", a_face: "top_face", b_instance: "br1", b_face: "bottom_face" },
+      { op: "set_parallel", assembly_id: asm, a_instance: "p1", a_ref: "front_face", b_instance: "br1", b_ref: "front_face" },
+      { op: "set_distance", assembly_id: asm, a_instance: "p1", a_ref: "right_face", b_instance: "br1", b_ref: "left_face", distance_mm: 15 },
+      { op: "set_distance", assembly_id: asm, a_instance: "p1", a_ref: "back_face", b_instance: "br1", b_ref: "back_face", distance_mm: 0 },
+    ]);
+    const detail = expectDofGolden(doc, asm, "br1", { dof: 0, freeT: [], freeR: [] }, "fully_constrained");
+    const d = inspectData(doc, asm) as any;
+    const t = d.instances.find((i: any) => i.id === "br1").transform.translation;
+    assert(Math.abs(t.x - 115) < 1e-6 && Math.abs(t.y) < 1e-6 && Math.abs(t.z - 10) < 1e-6,
+      `deterministic placement expected (115,0,10): (${t.x},${t.y},${t.z})`);
+    return detail;
+  });
+
+  run("P611-six-column-rank", "rank6 sees six distinct columns; per-axis drops detected", () => {
+    const unit = (i: number): any => ({ x: i === 0 ? 1 : 0, y: i === 1 ? 1 : 0, z: i === 2 ? 1 : 0 });
+    const tRows = [translationRow(unit(0)), translationRow(unit(1)), translationRow(unit(2))];
+    const rRows = [rotationRow(unit(0)), rotationRow(unit(1)), rotationRow(unit(2))];
+    const full = rank6([...tRows, ...rRows]);
+    assert(full.rank === 6 && full.freeT.length === 0 && full.freeR.length === 0,
+      `full six-column set must rank 6 with no free axes: ${JSON.stringify(full)}`);
+    const noRotZ = rank6([...tRows, rotationRow(unit(0)), rotationRow(unit(1))]);
+    assert(noRotZ.rank === 5 && JSON.stringify(noRotZ.freeT) === "[]" && JSON.stringify(noRotZ.freeR) === "[2]",
+      `missing Rz column must surface as freeR=[2]: ${JSON.stringify(noRotZ)}`);
+    const noTy = rank6([translationRow(unit(0)), translationRow(unit(2)), ...rRows]);
+    assert(noTy.rank === 5 && JSON.stringify(noTy.freeT) === "[1]" && JSON.stringify(noTy.freeR) === "[]",
+      `missing Ty column must surface as freeT=[1]: ${JSON.stringify(noTy)}`);
+    const dupTx = rank6([translationRow(unit(0)), translationRow(unit(0)), ...tRows.slice(1), ...rRows]);
+    assert(dupTx.rank === 6,
+      `duplicate Tx rows must not create a seventh column: rank ${dupTx.rank}`);
+    return `full rank=6/no-free; -Rz→freeR=[2]; -Ty→freeT=[1]; dup-Tx rank stays 6`;
+  });
 
   // ---- Blocker A regression: rows must be true 6-column rigid rows ------------
   run("P61-rows-shape", "constraint rows are true [T,T,T,R,R,R] rows", () => {
