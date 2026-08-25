@@ -80,6 +80,7 @@ scripts/*
 !scripts/bootstrap-macos.sh
 !scripts/install-freecad.sh
 !scripts/interop/
+!scripts/skills/
 
 # Test workspaces
 /tmp/
