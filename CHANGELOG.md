@@ -36,6 +36,7 @@ design; see docs/VERSIONING.md.
   contact-vs-penetration semantics, pair limits.
 - Instance efficiency: App::Link-based definition sharing with automatic shape-copy fallback
   (representation is a backend detail; public IR unchanged).
+- Docs: constraint-model supported list updated for the shipped parallel/perpendicular shorthands.
 
 ## Unreleased — Phase 6 (assemblies)
 

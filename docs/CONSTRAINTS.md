@@ -4,10 +4,13 @@ Battenmark's assembly constraints are a **bounded, deterministic rigid
 subset** — not a full parametric solver.
 
 Supported today: `fixed`, `mate_faces`, `align_axes`, `concentric`,
-`set_distance` (positive = air gap), `set_angle` (explicit degrees).
+`set_distance` (positive = air gap), `set_angle` (explicit degrees),
+`set_parallel` / `set_perpendicular` shorthands (planar faces; minimal
+deterministic rotation of the second referenced instance; translation
+preserved).
 
-Not supported yet: parallel/perpendicular shorthands, gear/screw joints,
-path mates, symmetric mates, collision-driven solving, motion/kinematics.
+Not supported yet: gear/screw joints, path mates, symmetric mates,
+collision-driven solving, motion/kinematics.
 
 State truth: contradictory constraints **raise `CONSTRAINT_CONFLICT`** at solve time; the `conflicted` constraint_state is therefore not emitted through normal inspection. Residual validation is enforced post-solve — an applied relationship outside tolerance flips the assembly to `unsolved`. Redundant-but-mechanically-active constraints still contribute DOF restriction.
 
