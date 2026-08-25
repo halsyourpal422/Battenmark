@@ -1,7 +1,7 @@
 {
   "name": "cad-service",
   "version": "0.5.6",
-  "description": "Model-neutral CAD service for AI agents and software. FreeCAD/OpenCascade is the first authoritative backend. Working identifier \u2014 not a public brand.",
+  "description": "Model-neutral CAD service for AI agents and software. FreeCAD/OpenCascade is the first authoritative backend. Working identifier — not a public brand.",
   "license": "Apache-2.0",
   "bin": {
     "agentcad": "bin/agentcad.mjs",
@@ -58,7 +58,10 @@
     "demo:phase551": "npx tsx --tsconfig tsconfig.json src/cad/backend/run-registry-tests.ts",
     "test:assembly": "npx tsx --tsconfig tsconfig.json src/cad/run-assembly-tests.ts",
     "test:assembly-freecad": "npx tsx --tsconfig tsconfig.json src/cad/kernel/run-assembly-freecad-tests.ts",
-    "test:phase6": "npm run test:assembly && npm run test:assembly-freecad"
+    "test:phase6": "npm run test:assembly && npm run test:assembly-freecad",
+    "interop:control": "node scripts/interop/control.mjs",
+    "interop:hermes": "node scripts/interop/hermes.mjs",
+    "interop:agent-zero": "node scripts/interop/agent-zero.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",

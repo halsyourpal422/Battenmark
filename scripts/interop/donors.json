@@ -1,0 +1,20 @@
+{
+  "hermes": {
+    "repo": "https://github.com/NousResearch/hermes-agent",
+    "sha": "5908c577f9048a0adcdd80fc467501b0f1e60b1b",
+    "version": "0.20.5",
+    "license": "MIT",
+    "python": ">=3.11,<3.14",
+    "install": "uv sync --extra mcp",
+    "notes": "MCP client lives in tools/mcp_tool.py; servers configured under mcp_servers in $HERMES_HOME/config.yaml"
+  },
+  "agent_zero": {
+    "repo": "https://github.com/agent0ai/agent-zero",
+    "sha": "b22a144bf59f15b1516084c9e7b88133ba92c8a9",
+    "version": "pinned-assessment",
+    "license": "MIT",
+    "runtime": "python + flask ui + docker-centric execution",
+    "mcp_client": false,
+    "notes": "Exposes itself as an MCP/A2A server (helpers/mcp_server.py via fastmcp); no generic external MCP client capability found at this pin (probe: no ClientSession/stdio_client/fastmcp.Client outside server-side code)"
+  }
+}
