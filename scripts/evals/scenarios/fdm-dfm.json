@@ -1,0 +1,12 @@
+{
+  "id": "fdm-dfm-001",
+  "skill": "fdm-dfm",
+  "version": "1.0.0",
+  "title": "Review pre-built bracket for FDM concerns",
+  "task": "A project already contains a bracket with: wall thickness 0.6 mm on one rib, a 1.2 mm hole, and a large horizontal overhang when oriented as-built. Review the model for consumer FDM printability. Identify relevant concerns, label any numeric guidance as contextual (printer/material dependent), state assumptions, and recommend verification. Do not invent universal manufacturing constants. Optional: apply a modest corrective feature only if clearly justified, then re-validate.",
+  "required_checks": ["geometry_inspected", "orientation_considered", "concerns_identified", "numeric_guidance_labeled", "no_universal_constants_as_laws", "public_ops_only"],
+  "hard_failures": ["universal_constants_as_laws", "private_backend_access", "schema_bypass"],
+  "weights": {"task_correctness": 35, "verification_discipline": 25, "api_schema_correctness": 15, "recovery_behavior": 10, "efficiency": 15},
+  "verification_gates": ["inspect", "review"],
+  "fixture": {"thin_wall_mm": 0.6, "small_hole_mm": 1.2}
+}

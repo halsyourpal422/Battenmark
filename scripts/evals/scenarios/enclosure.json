@@ -1,0 +1,12 @@
+{
+  "id": "enclosure-001",
+  "skill": "enclosure",
+  "version": "1.0.0",
+  "title": "Measured PCB enclosure shell",
+  "task": "Create project 'eval-enclosure'. Measured component: PCB 70×50×12 mm. Internal clearance 1.5 mm each side. Wall thickness 2.0 mm (stated assumption). Build an open-top enclosure shell sized from the measured board + clearance + walls. Add a 12×6 mm USB opening centered on the front wall, 3 mm up from the floor. Validate, preview, and export STEP or FCStd. Do not invent dimensions; use only the values given.",
+  "required_checks": ["project_created", "measurements_as_parameters", "outer_shell_created", "cavity_present", "opening_present", "validated", "preview_rendered", "artifact_exported", "no_invented_dimensions", "public_ops_only"],
+  "hard_failures": ["invented_dimensions", "invalid_final_solid", "schema_bypass", "missing_export_claim"],
+  "weights": {"task_correctness": 40, "verification_discipline": 25, "api_schema_correctness": 15, "recovery_behavior": 10, "efficiency": 10},
+  "verification_gates": ["validate", "render_preview", "export"],
+  "fixture": {"pcb_l_mm": 70, "pcb_w_mm": 50, "pcb_h_mm": 12, "clearance_mm": 1.5, "wall_mm": 2.0, "usb_w_mm": 12, "usb_h_mm": 6}
+}
