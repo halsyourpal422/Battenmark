@@ -38,6 +38,19 @@ design; see docs/VERSIONING.md.
   (representation is a backend detail; public IR unchanged).
 - Docs: constraint-model supported list updated for the shipped parallel/perpendicular shorthands.
 
+## Unreleased — Phase 6.1.1 (DOF golden hardening)
+
+- Permanent six-state assembly DOF golden fixtures (`DofA`–`DofF` in
+  `test:assembly`): free=6, fixed=0, planar=3, concentric=2, concentric+axial-stop
+  transition 2→1, fully constrained=0 with deterministic placement. Each asserts
+  exact `remaining_dof` plus mechanically meaningful free translation/rotation axes.
+- `P611-six-column-rank`: white-box proof that solver rank operates over six
+  distinct `[Tx, Ty, Tz, Rx, Ry, Rz]` columns and reports per-axis drops exactly.
+- `p611-dof-goldens-public-path`: all six states exercised through the public
+  `executeTool` → `inspect_assembly` contract in `test:assembly-freecad`.
+- Replaced dead `pinAssemblyDoc()` test helper with the used `pinPlateDofDoc()`
+  builder. Test-only change; no runtime semantics or geometry goldens altered.
+
 ## Unreleased — Phase 6 (assemblies)
 
 Backend-neutral assemblies on the frozen foundation:
