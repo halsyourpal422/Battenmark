@@ -56,12 +56,21 @@ system is accepted simply because it has more features.
 Legacy geometry (`test:cad` 11/11; FreeCAD worker suite 11/11 incl. the
 80×50×12 mm box golden V = 48000 mm³); Phase 6 assemblies (24 unit +
 15 authoritative checks incl. multi-feature FCStd golden ≈ 46,837.404 mm³);
-six-state DOF proof through the public API (free 6 / fixed 0 / planar 3 /
-concentric 2 / concentric+stop 1 / fully constrained 0, with mechanically
-correct free axes); OCC interference battery (separated / contact / shallow /
-deep / rotated / App::Link instances, 14/14); schema suite (10/10, including
-parallel/perpendicular required-field agreement across schema, service,
-Python client and MCP); MCP stdio smoke through real transport (all checks).
+six-state DOF behavior (free 6 / fixed 0 / planar 3 / concentric 2 /
+concentric+stop transition 1 / fully constrained 0, with mechanically correct
+free axes) is protected by **permanent CI fixtures** as of Phase 6.1.1:
+unit goldens `DofA`–`DofF` plus `P611-six-column-rank` in `test:assembly`,
+and `p611-dof-goldens-public-path` through `executeTool` → `inspect_assembly`
+in `test:assembly-freecad`. OCC interference battery (separated / contact /
+shallow / deep / rotated / App::Link instances); schema suite (10/10,
+including parallel/perpendicular required-field agreement across schema,
+service, Python client and MCP); MCP stdio smoke through real transport.
 Post-merge CI on the baseline SHA: success (run 32633334800). Platform claims
 unchanged: macOS Apple Silicon Tier 1, Linux validated where CI exists,
 Windows unsupported.
+
+## Hardened baseline
+
+Phase 7 starts from the Phase 6.1.1 regression-hardened baseline (tag
+`phase-6.1.1-baseline`), which includes the permanent DOF goldens above.
+`phase-6.1-baseline` remains the immutable historical runtime checkpoint.

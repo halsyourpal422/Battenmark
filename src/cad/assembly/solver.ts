@@ -170,8 +170,9 @@ function orthogonalPair(v: Vec3): { first: Vec3; second: Vec3 } {
 const AXIS_T = ["x", "y", "z"];
 const AXIS_R = ["about_x", "about_y", "about_z"];
 
-/** Gaussian-elimination rank with tolerance; also yields free-axis labels. */
-function rank6(rows: number[][]): { rank: number; freeT: number[]; freeR: number[] } {
+/** Gaussian-elimination rank with tolerance; also yields free-axis labels.
+ *  Exported for white-box six-column integrity tests (P611-six-column-rank). */
+export function rank6(rows: number[][]): { rank: number; freeT: number[]; freeR: number[] } {
   const m = rows.map((r) => [...r]);
   const pivots: number[] = [];
   let r = 0;
