@@ -1,0 +1,185 @@
+{
+  "kind": "reference",
+  "battenmark_sha": "local",
+  "results": [
+    {
+      "scenario_id": "assembly-planar-001",
+      "skill": "assembly",
+      "mode": "reference",
+      "score": 99,
+      "verdict": "PASS",
+      "hard_failures": [],
+      "metrics": {
+        "checks_passed": 11,
+        "checks_total": 11,
+        "check_fraction": 1,
+        "tool_calls": 13,
+        "failed_calls": 1,
+        "invalid_call_rate": 0.077,
+        "schema_errors": 0,
+        "artifact_count": 1,
+        "verification_gate_hits": 3,
+        "verification_gates_total": 3
+      },
+      "checks": {
+        "project_created": true,
+        "artifact_exported": true,
+        "public_ops_only": true,
+        "components_defined": true,
+        "instances_created": true,
+        "reference_grounded": true,
+        "constraint_applied": true,
+        "inspect_assembly_called": true,
+        "remaining_dof_3": true,
+        "interference_checked": true,
+        "no_overconstraint": true
+      },
+      "context_cost": {
+        "chars": 3024,
+        "words": 412,
+        "approx_tokens": 756
+      },
+      "remaining_dof": 3
+    },
+    {
+      "scenario_id": "backend-diagnostics-001",
+      "skill": "backend-diagnostics",
+      "mode": "reference",
+      "score": 99,
+      "verdict": "PASS",
+      "hard_failures": [],
+      "metrics": {
+        "checks_passed": 6,
+        "checks_total": 6,
+        "check_fraction": 1,
+        "tool_calls": 6,
+        "failed_calls": 1,
+        "invalid_call_rate": 0.167,
+        "schema_errors": 0,
+        "artifact_count": 0,
+        "verification_gate_hits": 3,
+        "verification_gates_total": 3
+      },
+      "checks": {
+        "public_ops_only": true,
+        "error_recorded": true,
+        "status_or_capabilities_inspected": true,
+        "recovery_attempted": true,
+        "re_verified": true,
+        "no_private_bypass": true
+      },
+      "context_cost": {
+        "chars": 2082,
+        "words": 273,
+        "approx_tokens": 521
+      }
+    },
+    {
+      "scenario_id": "basic-part-001",
+      "skill": "basic-part",
+      "mode": "reference",
+      "score": 100,
+      "verdict": "PASS",
+      "hard_failures": [],
+      "metrics": {
+        "checks_passed": 9,
+        "checks_total": 9,
+        "check_fraction": 1,
+        "tool_calls": 9,
+        "failed_calls": 0,
+        "invalid_call_rate": 0,
+        "schema_errors": 0,
+        "artifact_count": 1,
+        "verification_gate_hits": 3,
+        "verification_gates_total": 3
+      },
+      "checks": {
+        "project_created": true,
+        "parameters_defined": true,
+        "box_created": true,
+        "feature_applied": true,
+        "validated": true,
+        "preview_rendered": true,
+        "artifact_exported": true,
+        "no_schema_errors": true,
+        "public_ops_only": true
+      },
+      "context_cost": {
+        "chars": 2107,
+        "words": 280,
+        "approx_tokens": 527
+      }
+    },
+    {
+      "scenario_id": "enclosure-001",
+      "skill": "enclosure",
+      "mode": "reference",
+      "score": 99,
+      "verdict": "PASS",
+      "hard_failures": [],
+      "metrics": {
+        "checks_passed": 10,
+        "checks_total": 10,
+        "check_fraction": 1,
+        "tool_calls": 12,
+        "failed_calls": 1,
+        "invalid_call_rate": 0.083,
+        "schema_errors": 1,
+        "artifact_count": 1,
+        "verification_gate_hits": 3,
+        "verification_gates_total": 3
+      },
+      "checks": {
+        "project_created": true,
+        "validated": true,
+        "preview_rendered": true,
+        "artifact_exported": true,
+        "public_ops_only": true,
+        "measurements_as_parameters": true,
+        "outer_shell_created": true,
+        "cavity_present": true,
+        "opening_present": true,
+        "no_invented_dimensions": true
+      },
+      "context_cost": {
+        "chars": 2232,
+        "words": 292,
+        "approx_tokens": 558
+      }
+    },
+    {
+      "scenario_id": "fdm-dfm-001",
+      "skill": "fdm-dfm",
+      "mode": "reference",
+      "score": 100,
+      "verdict": "PASS",
+      "hard_failures": [],
+      "metrics": {
+        "checks_passed": 6,
+        "checks_total": 6,
+        "check_fraction": 1,
+        "tool_calls": 4,
+        "failed_calls": 0,
+        "invalid_call_rate": 0,
+        "schema_errors": 0,
+        "artifact_count": 0,
+        "verification_gate_hits": 2,
+        "verification_gates_total": 2
+      },
+      "checks": {
+        "public_ops_only": true,
+        "geometry_inspected": true,
+        "orientation_considered": true,
+        "concerns_identified": true,
+        "numeric_guidance_labeled": true,
+        "no_universal_constants_as_laws": true
+      },
+      "context_cost": {
+        "chars": 2600,
+        "words": 332,
+        "approx_tokens": 650
+      }
+    }
+  ],
+  "failures": 0
+}

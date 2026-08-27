@@ -1,0 +1,25 @@
+{
+  "id": "failure-no-docs",
+  "title": "failure-no-docs fixture",
+  "format": 1,
+  "version": 1,
+  "description": "Rejection fixture",
+  "category": "modeling",
+  "risk_level": "LOW",
+  "capabilities": [
+    "modeling"
+  ],
+  "operations": [
+    "create_box"
+  ],
+  "references": [],
+  "last_verified_schema": 2,
+  "provenance": {
+    "source": "internal",
+    "maintainer": "battenmark-team"
+  },
+  "tags": [
+    "test",
+    "fixture"
+  ]
+}

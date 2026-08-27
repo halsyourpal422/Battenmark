@@ -1,0 +1,25 @@
+{
+  "id": "failure-wrong-schema",
+  "title": "failure-wrong-schema fixture",
+  "format": 1,
+  "version": 1,
+  "description": "Rejection fixture",
+  "category": "modeling",
+  "risk_level": "LOW",
+  "capabilities": [
+    "modeling"
+  ],
+  "operations": [
+    "create_box"
+  ],
+  "references": [],
+  "last_verified_schema": 99,
+  "provenance": {
+    "source": "internal",
+    "maintainer": "battenmark-team"
+  },
+  "tags": [
+    "test",
+    "fixture"
+  ]
+}

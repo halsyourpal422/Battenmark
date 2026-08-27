@@ -1,0 +1,26 @@
+{
+  "id": "failure-bad-operation",
+  "title": "failure-bad-operation fixture",
+  "format": 1,
+  "version": 1,
+  "description": "Rejection fixture",
+  "category": "modeling",
+  "risk_level": "LOW",
+  "capabilities": [
+    "modeling"
+  ],
+  "operations": [
+    "create_magic_widget",
+    "inspect_part"
+  ],
+  "references": [],
+  "last_verified_schema": 2,
+  "provenance": {
+    "source": "internal",
+    "maintainer": "battenmark-team"
+  },
+  "tags": [
+    "test",
+    "fixture"
+  ]
+}
