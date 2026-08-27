@@ -1,9 +1,11 @@
 import type { CadDocument, Evaluation } from "../types";
 import type { ExportResult, HelloResult, InspectResult, ValidateResult } from "./protocol";
 
-export type KernelId = "jscad" | "freecad";
+/** Open identifier: new backends register without editing this union (ADR-0004). */
+export type KernelId = string;
 
 export interface KernelStatus {
+  kernel?: string;
   id: KernelId;
   name: string;
   available: boolean;

@@ -70,6 +70,37 @@ export type BackendId = string;
 export const FREECAD_BACKEND_ID = "freecad";
 export const JSCAD_BACKEND_ID = "jscad";
 export const MOCKCAD_BACKEND_ID = "mockcad";
+export const BUILD123D_BACKEND_ID = "build123d";
+
+/** build123d — experimental second authoritative backend (Phase 6.2 slice). */
+export function build123dCapabilities(opts: { available: boolean; version?: string | null } = { available: false }): BackendCapabilities {
+  return {
+    id: BUILD123D_BACKEND_ID,
+    name: "build123d / OpenCascade",
+    role: "authoritative",
+    roles: ["authoritative"],
+    available: opts.available,
+    version: opts.version ?? null,
+    detail: "Experimental Phase 6.2 conformance slice (create box/cylinder, through-hole, top-perimeter fillet, inspect, STEP). Selected via BATTENMARK_CAD_BACKEND.",
+    capabilities: capabilityFlags({
+      "primitives.box": true,
+      "primitives.cylinder": true,
+      "feature.hole.through": true,
+      "feature.fillet": true,
+      "import.step": true,
+      "export.step": true,
+      "render.preview": false,
+      "assembly": false,
+      "constraints": false,
+      "assembly.interference": false,
+      "assembly.instance_links": false,
+    }),
+    notes: [
+      "Experimental backend-neutral proof slice; FreeCAD remains the default authoritative backend.",
+      "Unsupported operations return BACKEND_UNSUPPORTED — no silent fallback.",
+    ],
+  };
+}
 
 export type BackendRole =
   | "authoritative"

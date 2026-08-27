@@ -182,6 +182,16 @@ export function createBackendRegistry(): BackendRegistry {
 /** Production set: FreeCAD authoritative, JSCAD preview. No test backends. */
 export function createProductionRegistry(): BackendRegistry {
   const registry = new BackendRegistry();
+  // Phase 6.2: experimental second backend, centrally selected via env.
+  if (process.env.BATTENMARK_CAD_BACKEND === "build123d") {
+    try {
+      const { build123dCapabilities, BUILD123D_BACKEND_ID } = require("./capabilities") as typeof import("./capabilities");
+      void BUILD123D_BACKEND_ID;
+      registry.register(build123dCapabilities({ available: true }));
+    } catch {
+      /* registration must never break the default registry */
+    }
+  }
   const fc = freecadCapabilities({ available: false });
   const js = jscadCapabilities({ available: true });
   registry.register({

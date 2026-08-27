@@ -134,6 +134,27 @@ jobs:
           echo "== test:transport-parity =="
           npm run --silent test:transport-parity
 
+  backend-neutrality:
+    name: build123d conformance (Linux)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - run: pip install --quiet build123d
+      - run: npm ci
+      - name: Cross-backend conformance
+        env:
+          B23D_PYTHON: python3
+          BATTENMARK_CAD_BACKEND: build123d
+        run: npm run --silent test:backends
+
   worker-python:
     name: freecad worker python tests
     runs-on: ubuntu-latest
