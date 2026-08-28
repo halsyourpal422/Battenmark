@@ -10,7 +10,7 @@ Battenmark is an agent-operable CAD platform: brains (LLM clients, agents, apps)
 
 Facts that constrain the decision:
 
-- Every CAD workflow is already expressible through the 75-operation typed surface; any conformant MCP/HTTP client drives the full chain (proven by transport-parity and stdio smoke tests).
+- Every CAD workflow is already expressible through the live `TOOL_NAMES` typed surface; the operation count is derived from that catalog rather than frozen in this ADR. Any conformant MCP/HTTP client drives the full chain (proven by transport-parity and stdio smoke tests).
 - Battenmark persists CAD truth in projects/revisions; conversation state belongs to whichever brain is driving.
 - The platform deliberately owns no LLM provider SDKs and no general-purpose execution surface (`PRIVILEGED_DENIED`).
 - Hermes demonstrates strong patterns (pluggable `ContextEngine(ABC)`, iteration budgets, per-session dangerous-command approvals, capability providers with tested failover, audited skills); Agent Zero demonstrates persona hierarchy and self-exposure as an MCP/A2A server, coupled to a Flask/webui stack and Docker-centric execution.
@@ -36,15 +36,15 @@ Concretely:
 
 - No agent-specific code enters `src/cad/**`; the CAD core stays donor-free by default.
 - Battenmark gains nothing "agentic" for free: multi-step planning remains the client's job. This is accepted — it is the product's universality trade.
-- Future slices (7A verify harness, 7B skill packs, 7D approval gate) are pre-scoped in the assessment and remain need-gated.
+- Follow-up work remains evidence-gated. Phase 7A interoperability, Phase 7B instruction-only skills, and Phase 7C deterministic skill evaluation have landed; real-agent evaluation must justify any later discovery/distribution work.
 
 ## Revisit conditions
 
 Revisit this ADR when any of the following becomes true:
 
 1. A paying/integrated use-case demands a first-party guided CAD experience that clients cannot deliver with existing ops + skill packs.
-2. The operation surface grows destructive/batch classes needing human approval gates (triggers slice 7D).
-3. Both donors' MCP client behavior changes such that interoperability regresses (triggers 7A re-run).
+2. The operation surface grows destructive/batch classes needing human approval gates.
+3. Donor MCP client behavior changes such that interoperability regresses (triggers a 7A re-run).
 4. A concrete donor subsystem appears with clean boundaries AND negligible dependencies AND a demonstrated Battenmark need — reopening Option 1 on evidence, not enthusiasm.
 
-Smallest experiment if revisited: slice 7C design doc + failing-first acceptance tests before any implementation.
+Smallest experiment if revisited: design doc + failing-first acceptance tests before any implementation.
