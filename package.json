@@ -51,6 +51,7 @@
     "test:phase55": "npm run test:schema && npm run test:discover && npm run test:conformance",
     "demo:phase55": "npx tsx --tsconfig tsconfig.json src/cad/backend/run-demo-phase55.ts",
     "test:backend-registry": "npx tsx --tsconfig tsconfig.json src/cad/backend/run-registry-tests.ts",
+    "test:neutrality": "npx tsx --tsconfig tsconfig.json src/cad/backend/run-neutrality-tests.ts",
     "test:backend-roles": "npx tsx --tsconfig tsconfig.json src/cad/backend/run-registry-tests.ts",
     "test:backend-pluggability": "npx tsx --tsconfig tsconfig.json src/cad/backend/run-registry-tests.ts",
     "test:macos": "npx tsx --tsconfig tsconfig.json src/cad/kernel/run-macos-proof.ts",

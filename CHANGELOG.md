@@ -26,6 +26,31 @@ First public release. Ships the Phase 5.5.1 verified universal CAD foundation:
 The internal engineering version (`CAD_SERVICE_VERSION = "0.5.6"`) is retained by
 design; see docs/VERSIONING.md.
 
+## Unreleased — Phase 7A (MCP interoperability)
+
+- Verified stock Hermes MCP client interoperability against Battenmark stdio without donor-specific Battenmark accommodations.
+- Added repeatable interop harnesses for control, Hermes, and Agent Zero capability assessment.
+- Preserved Battenmark as the server/tool platform; donor runtimes remain external clients.
+
+## Unreleased — Phase 7B (portable CAD skills)
+
+- Added five versioned instruction/workflow packs under `skills/` with `SKILL.md` + `skill.json`.
+- Added static validation against the live Battenmark tool catalog and rejection tests.
+- Executable skills remain forbidden; third-party skills are instruction-only and untrusted by default.
+
+## Unreleased — Phase 7C (skill evaluation harness)
+
+- Added deterministic reference scenarios for basic-part, enclosure, assembly, backend diagnostics, and FDM/DFM guidance.
+- Added objective scoring, mutation proof, and CI-enforced reference evaluation.
+- Real-agent A/B remains manual/credentialed and is not substituted by reference traces.
+
+## Unreleased — Phase 6.2 (backend-neutrality closeout)
+
+- Added explicit neutrality regressions for the live public catalog, backend-neutral argument names, open backend registration, structured unsupported-capability errors, and the distinction between open backend IDs and in-tree evaluator IDs.
+- Wired `test:neutrality` into credential-free CI.
+- Truths up README, limitations, architecture, roadmap, ADR chronology, and this changelog to match the Phase 6–7C implementation.
+- Does **not** ship build123d as a production backend; experimental build123d conformance work remains isolated on a recovery branch.
+
 ## Unreleased — Phase 6.1 (constraint hardening)
 
 - `set_parallel` / `set_perpendicular` constraints (planar faces; minimal deterministic rotation; translation preserved).

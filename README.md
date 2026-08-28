@@ -111,7 +111,7 @@ verified through JSCAD, FreeCAD, HTTP, CLI, MCP and the Python client
 
 This is pre-1.0 alpha software; APIs may change.
 
-- No assemblies, mates or assembly constraints yet
+- Assemblies support the current rigid subset; nested assemblies, assembly patterns, and advanced joint types remain unsupported
 - No circular patterns
 - Threads are cosmetic metadata, not helical solids
 - Imported STEP is geometry import — not automatic parametric reconstruction
