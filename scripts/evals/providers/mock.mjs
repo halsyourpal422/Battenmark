@@ -1,29 +1,39 @@
 /**
- * Phase 7C.2 — Deterministic mock EvalProvider for testing and CI.
- * Exercises the full provider seam without calling any real API.
+ * Phase 7C.2 — Deterministic mock EvalProvider for CI.
  */
 import { EvalProviderError, normalizeRequest, normalizeResult, registerProvider } from "./provider.mjs";
 
-/** @returns {import("./provider.mjs").EvalProvider} */
-export function createMockProvider() {
+export function createMockProvider(options = {}) {
+  const script = Array.isArray(options.script) ? [...options.script] : null;
   return {
     id: "mock",
     async run(request) {
       const normalized = normalizeRequest(request);
       if (!normalized.model) throw new EvalProviderError("MODEL_REQUIRED", "mock requires model field");
+      if (script && script.length) {
+        const turn = script.shift();
+        return normalizeResult({
+          providerId: "mock",
+          model: normalized.model,
+          output: turn.output ?? "",
+          toolCalls: turn.toolCalls ?? [],
+          usage: { promptTokens: 1, completionTokens: 1 },
+          finishReason: turn.finishReason ?? (turn.toolCalls?.length ? "tool_calls" : "stop"),
+          providerMetadata: { providerId: "mock", model: normalized.model },
+        });
+      }
       const lastMsg = [...normalized.messages].reverse().find((m) => m.role === "user");
-      const output = lastMsg ? String(lastMsg.content).slice(0, 20) + " [mocked]" : "[mocked]";
       return normalizeResult({
         providerId: "mock",
         model: normalized.model,
-        output,
-        toolCalls: [{ name: "project_create", args: { name: "mock-project" } }],
-        usage: { promptTokens: 50, completionTokens: 12 },
+        output: lastMsg ? `${String(lastMsg.content).slice(0, 24)} [mocked]` : "[mocked]",
+        toolCalls: [],
+        usage: { promptTokens: 8, completionTokens: 4 },
+        finishReason: "stop",
         providerMetadata: { providerId: "mock", model: normalized.model },
       });
     },
   };
 }
 
-// Auto-register on module load
 registerProvider(createMockProvider());
