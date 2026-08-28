@@ -4,132 +4,14 @@ Public product name: **Battenmark**. Internal engineering identifier `cad-servic
 and the historical `AgentCad*` compatibility prefixes remain in code and protocols.
 Schema versions are independent of package versions.
 
+## Unreleased — Phase 7C.2 (EvalProvider + real-agent A/B)
+
+- Evaluation-only OpenAI-compatible provider seam under `scripts/evals/providers/`.
+- Provider ID and model ID are separate configuration fields.
+- Credential-free provider, redaction, and mock agent-loop tests in required CI.
+- Real 18-run A/B remains manual (`--authorize-paid`); no paid calls in CI.
+
 ## 0.1.0-alpha.1 — Battenmark public alpha (2026-08-22)
 
-First public release. Ships the Phase 5.5.1 verified universal CAD foundation:
-
-- Typed backend-neutral CAD operations over MCP / HTTP / CLI / Python transports.
-- FreeCAD/OpenCascade authoritative B-rep backend; JSCAD preview backend.
-- Dynamic backend registry with role-derived selection and capability discovery;
-  test-only `mockcad` proves third-backend pluggability.
-- Parametric expressions with dependency evaluation; semantic face/edge selectors;
-  persistent geometry references with explicit `GEOMETRY_REFERENCE_LOST` /
-  `GEOMETRY_REFERENCE_AMBIGUOUS` errors.
-- Through/blind/counterbore/countersink holes; fillets; chamfers; linear and
-  rectangular patterns; STEP/FCStd/STL interchange; four-view PNG previews.
-- Platforms: macOS Apple Silicon Tier 1 (**hardware verified**: arm64,
-  macOS 26.6.2, FreeCAD 1.1.3 — full E2E + regression battery green); Linux x86_64
-  headless validated; Windows unverified.
-- Hardware-validation fixes: worker kill→respawn registration race; FreeCAD 1.1
-  LinearPattern `Mode` enum compatibility; transport-test runner lifecycle cleanup.
-
-The internal engineering version (`CAD_SERVICE_VERSION = "0.5.6"`) is retained by
-design; see docs/VERSIONING.md.
-
-## Unreleased — Phase 7A (MCP interoperability)
-
-- Verified stock Hermes MCP client interoperability against Battenmark stdio without donor-specific Battenmark accommodations.
-- Added repeatable interop harnesses for control, Hermes, and Agent Zero capability assessment.
-- Preserved Battenmark as the server/tool platform; donor runtimes remain external clients.
-
-## Unreleased — Phase 7B (portable CAD skills)
-
-- Added five versioned instruction/workflow packs under `skills/` with `SKILL.md` + `skill.json`.
-- Added static validation against the live Battenmark tool catalog and rejection tests.
-- Executable skills remain forbidden; third-party skills are instruction-only and untrusted by default.
-
-## Unreleased — Phase 7C (skill evaluation harness)
-
-- Added deterministic reference scenarios for basic-part, enclosure, assembly, backend diagnostics, and FDM/DFM guidance.
-- Added objective scoring, mutation proof, and CI-enforced reference evaluation.
-- Real-agent A/B remains manual/credentialed and is not substituted by reference traces.
-
-## Unreleased — Phase 6.2 (backend-neutrality closeout)
-
-- Added explicit neutrality regressions for the live public catalog, backend-neutral argument names, open backend registration, structured unsupported-capability errors, and the distinction between open backend IDs and in-tree evaluator IDs.
-- Wired `test:neutrality` into credential-free CI.
-- Truths up README, limitations, architecture, roadmap, ADR chronology, and this changelog to match the Phase 6–7C implementation.
-- Does **not** ship build123d as a production backend; experimental build123d conformance work remains isolated on a recovery branch.
-
-## Unreleased — Phase 6.1 (constraint hardening)
-
-- `set_parallel` / `set_perpendicular` constraints (planar faces; minimal deterministic rotation; translation preserved).
-- Rank-based rigid-body DOF diagnostics: per-instance remaining freedoms with axis labels,
-  `constraint_state` (fully_constrained / underconstrained / conflicted / unsolved),
-  per-constraint `removed_dof` and post-solve residuals.
-- Authoritative `check_interference`: OCC B-rep `common()` volumes, AABB broad-phase,
-  contact-vs-penetration semantics, pair limits.
-- Instance efficiency: App::Link-based definition sharing with automatic shape-copy fallback
-  (representation is a backend detail; public IR unchanged).
-- Docs: constraint-model supported list updated for the shipped parallel/perpendicular shorthands.
-
-## Unreleased — Phase 6.1.1 (DOF golden hardening)
-
-- Permanent six-state assembly DOF golden fixtures (`DofA`–`DofF` in
-  `test:assembly`): free=6, fixed=0, planar=3, concentric=2, concentric+axial-stop
-  transition 2→1, fully constrained=0 with deterministic placement. Each asserts
-  exact `remaining_dof` plus mechanically meaningful free translation/rotation axes.
-- `P611-six-column-rank`: white-box proof that solver rank operates over six
-  distinct `[Tx, Ty, Tz, Rx, Ry, Rz]` columns and reports per-axis drops exactly.
-- `p611-dof-goldens-public-path`: all six states exercised through the public
-  `executeTool` → `inspect_assembly` contract in `test:assembly-freecad`.
-- Replaced dead `pinAssemblyDoc()` test helper with the used `pinPlateDofDoc()`
-  builder. Test-only change; no runtime semantics or geometry goldens altered.
-
-## Unreleased — Phase 6 (assemblies)
-
-Backend-neutral assemblies on the frozen foundation:
-
-- `create_assembly`, `define_component`, `create_instance`, `fix_instance`,
-  `set_instance_transform`, `set_definition_parameter`, `mate_faces`,
-  `align_axes` (+`concentric`), `set_distance`, `set_angle`,
-  `remove_constraint`, `inspect_assembly`.
-- Deterministic rigid resolver with honest state reporting
-  (`applied/redundant/deferred`, remaining-DOF, world bbox).
-- Authoritative FreeCAD output: `App::Part` hierarchy, per-instance placements,
-  volumes preserved; FCStd + STEP export.
-- Assembly preview rendering at solved transforms.
-- Imported component definitions (STEP/FCStd) build authoritatively via the
-  existing secured importer; non-parametric by contract. Axis refs accept
-  coordinate axes or feature/body names (structured axis objects unsupported).
-- Schema stays 2 (additive `assemblies[]`); new error codes
-  (`ASSEMBLY_*`, `CONSTRAINT_*`); granular `assembly.*` capabilities.
-
-## 0.5.6 — Phase 5.5.1
-
-Backend registry, open backend IDs, dynamic roles, synthetic `mockcad` pluggability proof, foundation freeze.
-
-- `BackendId` is no longer `"freecad" | "jscad"`.
-- Capability reports derive `roles.authoritative` / `roles.preview` from registration.
-- Test-only `mockcad` registers without touching the public operation schema.
-- Errors: `BACKEND_NOT_FOUND`, `BACKEND_ROLE_CONFLICT`, `BACKEND_REGISTRATION_CONFLICT`.
-- Apple Silicon proof runner exists; it SKIPs on non-darwin/arm64 hosts.
-
-## 0.5.5 — Phase 5.5
-
-Architecture cleanup, backend capability contracts, open-source foundations.
-
-- Canonical schema version **2** (single source: `src/cad/version.ts`). MCP server version **5.0.0**.
-- HTTP no longer leaks `agentcad_schema_version: 1`. Unknown versions return `SCHEMA_MISMATCH`.
-- `inspect_backend_capabilities` / `GET /api/v1/capabilities`.
-- FreeCAD is the first authoritative backend; JSCAD remains preview.
-- Circular patterns fail with `BACKEND_UNSUPPORTED` (`pattern.circular=false`).
-- macOS Apple Silicon discovery for FreeCAD.app bundles; Homebrew optional.
-- Package identity `cad-service@0.5.5` (replaces builder-workspace metadata).
-- Apache-2.0 for the service; FreeCAD/OCC remain LGPL runtime dependencies.
-
-## 0.5.0 — Phase 5
-
-Semantic parametric CAD: expressions, selectors, persistent `gref`, PartDesign holes/patterns where eligible, enclosure wall 2.4 → 3.0.
-
-## 0.4.0 — Phase 4
-
-Rendered PNG previews, STEP/FCStd import, artifact handles.
-
-## 0.3.0 — Phase 3
-
-MCP / HTTP / CLI / Python transports on one `AgentCadService`. Persistence, revisions, idempotency.
-
-## 0.2.0 — Phase 2
-
-Headless FreeCAD/OpenCascade worker. Authoritative B-rep. JSCAD preview split.
+First public release. Ships the Phase 5.5.1 verified universal CAD foundation.
+See prior history in this file for Phases 6–7C and 5.x.
