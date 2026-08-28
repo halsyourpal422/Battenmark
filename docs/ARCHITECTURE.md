@@ -1,13 +1,13 @@
 # Architecture
 
-Working identifier: **cad-service** (not a public brand). Historical module prefix: `AgentCAD`.
+Public project name: **Battenmark**. Working package identifier: `cad-service`. Historical module prefix: `AgentCAD`.
 
-A model-neutral CAD service for AI agents and ordinary software. FreeCAD/OpenCascade is the first authoritative backend. JSCAD is preview.
+A backend-neutral CAD service for AI agents and ordinary software. FreeCAD/OpenCascade is the authoritative geometry backend. JSCAD is preview.
 
 ```text
 ChatGPT / Codex / Claude / Gemini / local models / IDE agents / scripts
                                    │
-             MCP / HTTP / Python / CLI / Studio
+                    MCP / HTTP / Python / CLI
                                    │
                                    ▼
                      AgentCadService  (canonical)
@@ -22,7 +22,7 @@ ChatGPT / Codex / Claude / Gemini / local models / IDE agents / scripts
    authoritative                 preview                 test-only
    OpenCascade B-rep
         │
-        └────────── future: build123d / CadQuery (same contract, new registration)
+        └────────── future adapters use the same public contract
 ```
 
 ## Module map
@@ -44,8 +44,11 @@ ChatGPT / Codex / Claude / Gemini / local models / IDE agents / scripts
 | Worker | `freecad-worker/` | FreeCAD adapter (runs *inside* FreeCADCmd) |
 | JSCAD preview | `src/cad/kernel/jscad.ts`, `src/cad/preview/` | JSCAD preview |
 | Persistence | `src/cad/service/store.ts`, `projects/` | persistence |
-| Studio | `src/components/`, `src/routes/` | Studio/UI |
-| Host chrome | `AGENTS.md`, `public/__grok/`, `server/`, `startup.sh` | builder environment (kept for this sandbox) |
+| Assemblies | `src/cad/assembly/` | backend-neutral assembly semantics / solver |
+| Skills | `skills/` | versioned instruction/workflow packs; non-executable |
+| Evaluation | `scripts/evals/` | credential-free reference/scoring harness; real-agent layer remains external/manual |
+
+There is no first-party Studio/React application in the current repository tree. Historical or external host/UI paths are not part of the Battenmark core described here.
 
 `src/cad/kernel/` is the **adapter layer**, not the public contract. Callers never send `PartDesign::Hole`.
 
