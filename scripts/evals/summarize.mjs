@@ -6,6 +6,12 @@ function mean(xs) {
   return xs.length ? xs.reduce((a, b) => a + b, 0) / xs.length : 0;
 }
 
+export function isLayerBEvidence(row, payloadMeta = {}) {
+  const provider = row?.provider ?? payloadMeta.provider;
+  const mode = row?.execution_mode ?? payloadMeta.execution_mode ?? payloadMeta.kind;
+  return mode === "real-agent" && typeof provider === "string" && provider !== "mock";
+}
+
 export function summarizeRuns(runs) {
   const byScenario = {};
   for (const r of runs) {
@@ -30,6 +36,10 @@ export function summarizeRuns(runs) {
   return rows;
 }
 
+export function summarizeLayerB(runs, payloadMeta = {}) {
+  return summarizeRuns(runs.filter((r) => isLayerBEvidence(r, payloadMeta)));
+}
+
 async function main() {
   const file = process.argv[2];
   if (!file) {
@@ -37,7 +47,14 @@ async function main() {
     process.exit(2);
   }
   const payload = JSON.parse(await readFile(file, "utf8"));
-  console.log(JSON.stringify(summarizeRuns(payload.results || payload), null, 2));
+  const runs = payload.results || payload;
+  const layerB = summarizeLayerB(Array.isArray(runs) ? runs : [], payload);
+  console.log(JSON.stringify({
+    execution_mode: payload.execution_mode || payload.kind,
+    provider: payload.provider,
+    layer_b_rows: (Array.isArray(runs) ? runs : []).filter((r) => isLayerBEvidence(r, payload)).length,
+    summary: layerB,
+  }, null, 2));
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) main();
