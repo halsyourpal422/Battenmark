@@ -63,6 +63,12 @@ jobs:
           npm run --silent eval:skills:score
           echo "== eval:skills:reference =="
           npm run --silent eval:skills:reference
+          echo "== eval:provider:test =="
+          npm run --silent eval:provider:test
+          echo "== eval:provider:redaction =="
+          npm run --silent eval:provider:redaction
+          echo "== eval:agent:mock =="
+          npm run --silent eval:agent:mock
           echo "== test:discover =="
           npm run --silent test:discover
           echo "== test:neutrality =="
