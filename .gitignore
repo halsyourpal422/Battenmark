@@ -89,3 +89,5 @@ scripts/*
 # Coverage
 coverage/
 .nyc_output/
+
+scripts/evals/results/*.json
