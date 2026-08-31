@@ -49,6 +49,13 @@ BATTENMARK_EVAL_TIMEOUT_MS=30000
 OPENAI_API_KEY=<secret, never committed>
 ```
 
+The OpenAI-compatible evaluation provider retries only HTTP 429 responses whose
+provider error code or type is `rate_limit_exceeded`. It honors `Retry-After`
+(seconds or HTTP-date), bounded to 8 seconds per wait and 15 seconds total, and
+otherwise waits 1, 2, 4, then 8 seconds. After four retries it raises a redacted
+`RATE_LIMIT_EXHAUSTED` error. Quota, credit, authentication, and other permanent
+errors are not retried.
+
 ## CI (credential-free)
 
 ```bash

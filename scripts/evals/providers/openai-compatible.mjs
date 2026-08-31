@@ -5,18 +5,64 @@
 import { EvalProviderError, normalizeRequest, normalizeResult, parseToolCallArguments, registerProvider } from "./provider.mjs";
 import { loadProviderConfig, validateProviderConfig } from "./provider-config.mjs";
 
+const MAX_RATE_LIMIT_RETRIES = 4;
+const BASE_RETRY_DELAY_MS = 1000;
+const MAX_RETRY_DELAY_MS = 8000;
+const MAX_TOTAL_RETRY_DELAY_MS = 15000;
+
 function redactSecret(text, secret) {
   const value = String(text ?? "");
   if (!secret) return value;
   return value.split(secret).join("[REDACTED]");
 }
 
-export function createOpenAICompatibleProvider({ fetchImpl, config: configOverrides } = {}) {
+function sleep(delayMs) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
+
+function providerErrorDetails(errorText) {
+  try {
+    const parsed = JSON.parse(errorText);
+    return parsed?.error && typeof parsed.error === "object" ? parsed.error : {};
+  } catch {
+    return {};
+  }
+}
+
+function isRetryableRateLimit(status, errorText) {
+  if (status !== 429) return false;
+  const error = providerErrorDetails(errorText);
+  return error.code === "rate_limit_exceeded" || error.type === "rate_limit_exceeded";
+}
+
+function parseRetryAfterMs(value, nowMs = Date.now()) {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const trimmed = value.trim();
+  if (/^\d+(?:\.\d+)?$/.test(trimmed)) {
+    const delayMs = Number(trimmed) * 1000;
+    return Number.isFinite(delayMs) && delayMs >= 0 ? delayMs : null;
+  }
+  const retryAt = Date.parse(trimmed);
+  if (!Number.isFinite(retryAt)) return null;
+  return Math.max(0, retryAt - nowMs);
+}
+
+function retryDelayMs(response, retryNumber, totalRetryDelayMs) {
+  const retryAfter = response.headers?.get?.("retry-after");
+  const recommended = parseRetryAfterMs(retryAfter)
+    ?? Math.min(BASE_RETRY_DELAY_MS * (2 ** (retryNumber - 1)), MAX_RETRY_DELAY_MS);
+  const remaining = MAX_TOTAL_RETRY_DELAY_MS - totalRetryDelayMs;
+  if (remaining <= 0) return null;
+  return Math.min(recommended, MAX_RETRY_DELAY_MS, remaining);
+}
+
+export function createOpenAICompatibleProvider({ fetchImpl, sleepImpl, config: configOverrides } = {}) {
   return {
     id: "openai-compatible",
     async run(request, runtime = {}) {
       const cfg = validateProviderConfig(loadProviderConfig({ ...configOverrides, ...runtime.config }));
       const fetchFn = runtime.fetchImpl || fetchImpl || globalThis.fetch;
+      const sleepFn = runtime.sleepImpl || sleepImpl || sleep;
       const normalized = normalizeRequest({
         ...request,
         model: request.model || cfg.model,
@@ -51,18 +97,44 @@ export function createOpenAICompatibleProvider({ fetchImpl, config: configOverri
       const timeoutMs = request.timeoutMs ?? cfg.timeoutMs;
       const timer = setTimeout(() => controller.abort(), timeoutMs);
       try {
-        const response = await fetchFn(`${baseUrl}/chat/completions`, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${apiKey}`,
-          },
-          body: JSON.stringify(payload),
-          signal: controller.signal,
-        });
-        if (!response.ok) {
-          const errorText = redactSecret(await response.text().catch(() => response.statusText), apiKey);
-          throw new EvalProviderError("PROVIDER_ERROR", `HTTP ${response.status}: ${errorText}`);
+        let retries = 0;
+        let totalRetryDelayMs = 0;
+        let response;
+        while (true) {
+          response = await fetchFn(`${baseUrl}/chat/completions`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${apiKey}`,
+            },
+            body: JSON.stringify(payload),
+            signal: controller.signal,
+          });
+          if (!response.ok) {
+            const rawErrorText = await response.text().catch(() => response.statusText);
+            const errorText = redactSecret(rawErrorText, apiKey);
+            if (isRetryableRateLimit(response.status, rawErrorText)) {
+              if (retries >= MAX_RATE_LIMIT_RETRIES) {
+                throw new EvalProviderError(
+                  "RATE_LIMIT_EXHAUSTED",
+                  `Provider rate limit retry budget exhausted after ${retries + 1} attempts: HTTP ${response.status}: ${errorText}`,
+                );
+              }
+              const delayMs = retryDelayMs(response, retries + 1, totalRetryDelayMs);
+              if (delayMs === null) {
+                throw new EvalProviderError(
+                  "RATE_LIMIT_EXHAUSTED",
+                  `Provider rate limit retry duration exhausted after ${retries + 1} attempts: HTTP ${response.status}: ${errorText}`,
+                );
+              }
+              retries++;
+              totalRetryDelayMs += delayMs;
+              await sleepFn(delayMs);
+              continue;
+            }
+            throw new EvalProviderError("PROVIDER_ERROR", `HTTP ${response.status}: ${errorText}`);
+          }
+          break;
         }
         const data = await response.json();
         const message = data.choices?.[0]?.message ?? {};
