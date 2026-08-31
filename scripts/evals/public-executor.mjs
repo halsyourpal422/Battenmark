@@ -28,6 +28,45 @@ export function privilegedRejected(name, catalog) {
   return false;
 }
 
+export function createEvaluationFixture(scenario) {
+  const fixture = scenario?.fixture?.structured_error;
+  let injectionCount = 0;
+  return {
+    get injectionCount() {
+      return injectionCount;
+    },
+    async inject() {
+      if (!fixture || injectionCount > 0) return null;
+      injectionCount += 1;
+      const details = {
+        reference: fixture.stale_reference,
+        entity: fixture.entity,
+        suggestion: fixture.suggestion,
+      };
+      const result = {
+        ok: false,
+        code: fixture.code,
+        error: fixture.message,
+        details,
+        observation: JSON.stringify({
+          ok: false,
+          error: {
+            code: fixture.code,
+            message: fixture.message,
+            ...details,
+          },
+        }),
+      };
+      return {
+        call_id: `fixture:${scenario.id}:structured-error:1`,
+        name: fixture.operation,
+        args: structuredClone(fixture.args),
+        result,
+      };
+    },
+  };
+}
+
 export async function executePublicTool(name, args = {}, { catalog, state } = {}) {
   const cat = catalog || (await loadPublicCatalog());
   if (privilegedRejected(name, cat)) {
@@ -48,7 +87,8 @@ export async function executePublicTool(name, args = {}, { catalog, state } = {}
     next.box_created = true;
     next.outer_shell_created = true;
   }
-  if (name === "create_hole" || name === "fillet" || name === "chamfer" || name === "boolean") next.feature_applied = true;
+  if (name === "create_hole" || name === "fillet" || name === "chamfer" || name === "boolean")
+    next.feature_applied = true;
   if (name === "validate") next.validated = true;
   if (name === "render_preview") next.preview_rendered = true;
   if (name === "export_step" || name === "export_fcstd" || name === "export_assembly") {
@@ -58,7 +98,8 @@ export async function executePublicTool(name, args = {}, { catalog, state } = {}
   if (name === "define_component") next.components_defined = true;
   if (name === "create_instance") next.instances_created = true;
   if (name === "fix_instance") next.reference_grounded = true;
-  if (name === "mate_faces" || name === "mate_axis" || name === "add_constraint") next.constraint_applied = true;
+  if (name === "mate_faces" || name === "mate_axis" || name === "add_constraint")
+    next.constraint_applied = true;
   if (name === "inspect_assembly") {
     next.inspect_assembly_called = true;
     next.remaining_dof = 3;

@@ -148,6 +148,14 @@ await test("real-experiment-identity-binds-frozen-inputs", async () => {
     "content hashes",
   );
   assert(experiment.tool_catalog_hash.length === 64, "tool catalog hash");
+  assert(
+    experiment.evaluation_semantics === "battenmark.phase7c.backend-recovery.v2",
+    experiment.evaluation_semantics,
+  );
+  assert(
+    experiment.trace_schema_version === "battenmark.eval.trace.v1",
+    experiment.trace_schema_version,
+  );
   assert(buildMatrix(experiment).length === 18, "matrix size");
   assert(
     !JSON.stringify(experiment).includes("BATTENMARK_TEST_SECRET_DO_NOT_LEAK"),

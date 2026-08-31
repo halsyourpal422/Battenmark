@@ -30,11 +30,23 @@ export function normalizeRequest({ model, messages, tools, temperature, maxOutpu
   };
 }
 
-export function normalizeResult({ providerId, model, output, toolCalls, usage, providerMetadata, finishReason }) {
+export function normalizeResult({
+  providerId,
+  model,
+  output,
+  toolCalls,
+  usage,
+  providerMetadata,
+  finishReason,
+}) {
   return {
     output: String(output ?? ""),
     toolCalls: Array.isArray(toolCalls)
-      ? toolCalls.map((tc) => ({ name: tc.name, args: tc.args && typeof tc.args === "object" ? tc.args : {} }))
+      ? toolCalls.map((tc) => ({
+          id: tc.id ? String(tc.id) : undefined,
+          name: tc.name,
+          args: tc.args && typeof tc.args === "object" ? tc.args : {},
+        }))
       : [],
     usage: usage
       ? {

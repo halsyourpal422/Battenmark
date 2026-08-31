@@ -37,6 +37,7 @@ import {
   sha256Canonical,
   sha256Text,
 } from "./checkpoint.mjs";
+import { EVALUATION_SEMANTICS_VERSION, TRACE_SCHEMA_VERSION } from "./trace.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "../..");
@@ -46,6 +47,7 @@ const REAL_CONDITIONS = ["no-skill", "with-skill"];
 const REAL_REPETITIONS = 3;
 const CHECKPOINT_PATH = join(ROOT, "scripts/evals/results/agent-checkpoint.json");
 const AGENT_SUMMARY_PATH = join(ROOT, "scripts/evals/results/agent-summary.json");
+const TRACE_ROOT = join(ROOT, "scripts/evals/results/traces");
 
 const REAL_AGENT_REFUSAL = `REAL_AGENT_PROVIDER_REQUIRED
 
@@ -132,6 +134,8 @@ export async function buildRealAgentExperiment({
     repetitions,
     agent_turn_budget: DEFAULT_TURN_BUDGET,
     tool_catalog_hash: sha256Canonical(catalog.entries),
+    evaluation_semantics: EVALUATION_SEMANTICS_VERSION,
+    trace_schema_version: TRACE_SCHEMA_VERSION,
     scenarios,
   });
 }
@@ -254,13 +258,26 @@ async function runAgent(scenarioFilter, conditionArg, { forceMock = false, repea
       experiment,
       matrix,
       checkpointPath: CHECKPOINT_PATH,
+      tracesDir: TRACE_ROOT,
       resume: flag("resume"),
       executeRow: async (entry) => {
+        const tracePath = `${experiment.experiment_id}/${entry.scenario_key}__${entry.condition}__${entry.run}.json`;
         const row = await runAgentLoop({
           scenarioId: entry.scenario_key,
           condition: entry.condition,
           config: cfg,
           runId: entry.run,
+          traceOptions: {
+            filePath: join(TRACE_ROOT, tracePath),
+            relativePath: tracePath,
+            experimentId: experiment.experiment_id,
+            battenmarkSha: experiment.battenmark_sha,
+            matrixKey: entry.matrix_key,
+            executionMode: execution_mode,
+            evaluationSemantics: experiment.evaluation_semantics,
+            traceSchemaVersion: experiment.trace_schema_version,
+            toolCatalogHash: experiment.tool_catalog_hash,
+          },
         });
         const completed = {
           ...row,
@@ -280,6 +297,7 @@ async function runAgent(scenarioFilter, conditionArg, { forceMock = false, repea
       checkpointPath: CHECKPOINT_PATH,
       checkpoint: checkpointed.checkpoint,
       matrix,
+      tracesDir: TRACE_ROOT,
       writeSummary: async (results) => {
         if (results.length !== 18 || results.some((row) => !isLayerBEvidence(row))) {
           const err = new Error(
@@ -295,6 +313,8 @@ async function runAgent(scenarioFilter, conditionArg, { forceMock = false, repea
           battenmark_sha: experiment.battenmark_sha,
           provider: cfg.provider,
           model: cfg.model,
+          evaluation_semantics: experiment.evaluation_semantics,
+          trace_schema_version: experiment.trace_schema_version,
           results,
           summary: summarizeLayerB(results),
           layer_b_rows: results.length,
