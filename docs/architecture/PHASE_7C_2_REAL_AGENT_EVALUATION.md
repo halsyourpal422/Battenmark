@@ -1,6 +1,6 @@
 # Phase 7C.2 — Real-agent A/B + evaluation-only provider seam
 
-**Status:** Tooling complete on Phase 6.2 baseline. Real 18-run A/B pending credentials.
+**Status:** Pacing and checkpoint/resume tooling complete. Authorized real 18-run A/B pending.
 **Base:** `b96494b172c79aa10cb657373f91793afb839e1e`
 **Scope:** evaluation-only. No CAD backend change, no embedded agent runtime, no MCP skill discovery.
 
@@ -56,12 +56,42 @@ otherwise waits 1, 2, 4, then 8 seconds. After four retries it raises a redacted
 `RATE_LIMIT_EXHAUSTED` error. Quota, credit, authentication, and other permanent
 errors are not retried.
 
+## Rate-limit-aware pacing
+
+The provider retains only the latest non-secret request/token limit, remaining,
+reset-duration, and observation-time fields. Before the next request it waits
+when reported token capacity is below a conservative reservation consisting of
+the serialized messages/tools estimate (four characters per token), the frozen
+4096-token output allowance, and a 512-token buffer. It also waits when reported
+request capacity is zero. Reset values support `ms`, `s`, `m`, and `h` segments
+(including values such as `1.5s` and `1m30s`); waits include a 250 ms safety
+margin. Missing or invalid headers do not block requests. Temporary 429 timing
+prefers `Retry-After`, then token/request reset headers, then bounded backoff.
+
+## Row checkpoint and explicit resume
+
+Real-agent runs atomically replace `scripts/evals/results/agent-checkpoint.json`
+with an empty checkpoint before a fresh matrix, then fsync and atomically replace
+it after every fully scored row. `--resume` is explicit and fails closed unless
+the checkpoint experiment identity exactly matches the requested Git SHA,
+provider, model, temperature, output budget, scenario and skill hashes,
+conditions, repetitions, 12-turn agent budget, and public tool-catalog hash.
+Matrix keys use `<scenario>|<condition>|<run>`. Corrupt, duplicate, unexpected,
+or structurally invalid rows are rejected before any missing row executes.
+
+The canonical `agent-summary.json` is written only after all 18 unique real-agent
+rows validate. The checkpoint is then retained with `status: complete`. A fresh
+run without `--resume` deliberately replaces stale checkpoint rows; a resume
+executes only exact missing keys.
+
 ## CI (credential-free)
 
 ```bash
 npm run eval:provider:test
 npm run eval:provider:redaction
+npm run eval:checkpoint:test
 npm run eval:agent:mock
+npm run eval:agent:integrity
 ```
 
 Zero paid model calls. Zero secrets required.
@@ -70,6 +100,12 @@ Zero paid model calls. Zero secrets required.
 
 ```bash
 npm run eval:agent -- --condition both --repeats 3 --authorize-paid
+```
+
+Resume an interrupted matching experiment explicitly:
+
+```bash
+npm run eval:agent -- --condition both --repeats 3 --authorize-paid --resume
 ```
 
 Matrix: assembly, enclosure, backend-diagnostics × no-skill/with-skill × 3 = 18.

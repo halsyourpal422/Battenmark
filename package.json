@@ -70,6 +70,7 @@
     "eval:skills:score": "npx tsx scripts/evals/score-test.mjs",
     "eval:provider:test": "npx tsx scripts/evals/providers/provider-tests.mjs",
     "eval:provider:redaction": "npx tsx scripts/evals/providers/secret-redaction-test.mjs",
+    "eval:checkpoint:test": "npx tsx scripts/evals/checkpoint-tests.mjs",
     "eval:agent:mock": "npx tsx scripts/evals/agent-mock-test.mjs",
     "eval:agent": "npx tsx scripts/evals/run.mjs --mode agent",
     "eval:agent:integrity": "npx tsx scripts/evals/agent-integrity-test.mjs"
