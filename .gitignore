@@ -92,3 +92,4 @@ coverage/
 
 scripts/evals/results/*.json
 scripts/evals/results/*.tmp
+scripts/evals/results/traces/

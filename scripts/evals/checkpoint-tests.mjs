@@ -83,6 +83,7 @@ function row(entry, extra = {}) {
     score: 80,
     verdict: "PASS",
     execution_mode: "real-agent",
+    evaluation_semantics: "battenmark.phase7c.backend-recovery.v1",
     termination: "model_stop",
     ...extra,
   };
@@ -221,6 +222,34 @@ for (const [id, mutate] of [
       experiment({
         ...base,
         scenarios: base.scenarios.map((s, i) => (i ? s : { ...s, scenario_hash: "changed" })),
+      }),
+  ],
+  [
+    "checkpoint-backend-scenario-hash-mismatch-fails-closed",
+    (base) =>
+      experiment({
+        ...base,
+        scenarios: base.scenarios.map((scenario) =>
+          scenario.key === "backend-diagnostics"
+            ? { ...scenario, scenario_hash: "changed-backend" }
+            : scenario,
+        ),
+      }),
+  ],
+  [
+    "checkpoint-evaluation-semantics-mismatch-fails-closed",
+    (base) =>
+      experiment({
+        ...base,
+        evaluation_semantics: "battenmark.phase7c.backend-recovery.v2",
+      }),
+  ],
+  [
+    "checkpoint-trace-schema-mismatch-fails-closed",
+    (base) =>
+      experiment({
+        ...base,
+        trace_schema_version: "battenmark.eval.trace.v0",
       }),
   ],
 ]) {

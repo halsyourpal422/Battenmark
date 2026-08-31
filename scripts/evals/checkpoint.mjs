@@ -5,8 +5,9 @@
 import { createHash } from "node:crypto";
 import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname } from "node:path";
+import { readAndValidateCompletedTrace } from "./trace.mjs";
 
-export const CHECKPOINT_SCHEMA_VERSION = "battenmark.eval.checkpoint.v1";
+export const CHECKPOINT_SCHEMA_VERSION = "battenmark.eval.checkpoint.v2";
 
 export class CheckpointError extends Error {
   constructor(code, message) {
@@ -50,6 +51,10 @@ export function createExperimentDefinition(input) {
     repetitions: Number(input.repetitions),
     agent_turn_budget: Number(input.agent_turn_budget),
     tool_catalog_hash: String(input.tool_catalog_hash),
+    evaluation_semantics: String(
+      input.evaluation_semantics ?? "battenmark.phase7c.backend-recovery.v1",
+    ),
+    trace_schema_version: String(input.trace_schema_version ?? "none"),
     scenarios: input.scenarios.map((scenario) => ({
       key: String(scenario.key),
       id: String(scenario.id),
@@ -145,6 +150,7 @@ export async function readCheckpoint(path) {
 }
 
 function assertRowMatches(entry, row, experiment) {
+  const traceRequired = experiment.trace_schema_version !== "none";
   const valid =
     row &&
     typeof row === "object" &&
@@ -158,6 +164,12 @@ function assertRowMatches(entry, row, experiment) {
     row.provider === experiment.provider &&
     row.model === experiment.model &&
     row.temperature === experiment.temperature &&
+    row.evaluation_semantics === experiment.evaluation_semantics &&
+    (!traceRequired ||
+      (row.trace_status === "complete" &&
+        row.trace_schema_version === experiment.trace_schema_version &&
+        typeof row.trace_path === "string" &&
+        /^[a-f0-9]{64}$/.test(row.trace_sha256))) &&
     typeof row.score === "number" &&
     typeof row.verdict === "string" &&
     typeof row.termination === "string";
@@ -192,10 +204,51 @@ function checkpointSafeRow(row) {
     "remaining_dof",
     "usage",
     "execution_mode",
+    "evaluation_semantics",
+    "trace_path",
+    "trace_sha256",
+    "trace_schema_version",
+    "trace_status",
   ];
   return Object.fromEntries(
     allowed.filter((key) => row[key] !== undefined).map((key) => [key, row[key]]),
   );
+}
+
+async function validateCheckpointTraces(checkpoint, experiment, tracesDir) {
+  if (experiment.trace_schema_version === "none") return;
+  if (!tracesDir) {
+    throw new CheckpointError(
+      "CHECKPOINT_TRACE_INVALID",
+      "Trace directory is required for traced experiment rows",
+    );
+  }
+  for (const row of checkpoint.completed_rows) {
+    try {
+      await readAndValidateCompletedTrace({
+        tracesDir,
+        tracePath: row.trace_path,
+        traceSha256: row.trace_sha256,
+        expected: {
+          trace_schema_version: experiment.trace_schema_version,
+          evaluation_semantics: experiment.evaluation_semantics,
+          experiment_id: experiment.experiment_id,
+          battenmark_sha: experiment.battenmark_sha,
+          provider: row.provider,
+          model: row.model,
+          matrix_key: row.matrix_key,
+          scenario_id: row.scenario_id,
+          condition: row.condition,
+          run: row.run,
+        },
+      });
+    } catch (error) {
+      throw new CheckpointError(
+        "CHECKPOINT_TRACE_INVALID",
+        `Completed row trace is invalid for ${row.matrix_key}: ${error.message}`,
+      );
+    }
+  }
 }
 
 function validateCheckpoint(checkpoint, experiment, matrix) {
@@ -255,12 +308,14 @@ export async function runCheckpointedMatrix({
   experiment,
   matrix,
   checkpointPath,
+  tracesDir,
   resume,
   executeRow,
 }) {
   let checkpoint;
   if (resume) {
     checkpoint = validateCheckpoint(await readCheckpoint(checkpointPath), experiment, matrix);
+    await validateCheckpointTraces(checkpoint, experiment, tracesDir);
   } else {
     checkpoint = newCheckpoint(experiment);
     await atomicWriteCheckpoint(checkpointPath, checkpoint);
@@ -271,6 +326,7 @@ export async function runCheckpointedMatrix({
     if (completedKeys.has(entry.matrix_key)) continue;
     const completedRow = checkpointSafeRow(await executeRow(entry));
     assertRowMatches(entry, completedRow, experiment);
+    await validateCheckpointTraces({ completed_rows: [completedRow] }, experiment, tracesDir);
     checkpoint.completed_rows.push(completedRow);
     completedKeys.add(entry.matrix_key);
     await atomicWriteCheckpoint(checkpointPath, checkpoint);
@@ -280,8 +336,15 @@ export async function runCheckpointedMatrix({
   return { checkpoint, rows: orderedRows(checkpoint, matrix) };
 }
 
-export async function finalizeCheckpoint({ checkpointPath, checkpoint, matrix, writeSummary }) {
+export async function finalizeCheckpoint({
+  checkpointPath,
+  checkpoint,
+  matrix,
+  tracesDir,
+  writeSummary,
+}) {
   validateCheckpoint(checkpoint, checkpoint.experiment, matrix);
+  await validateCheckpointTraces(checkpoint, checkpoint.experiment, tracesDir);
   const rows = orderedRows(checkpoint, matrix);
   if (
     rows.length !== matrix.length ||

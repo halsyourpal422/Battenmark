@@ -251,6 +251,7 @@ export function createOpenAICompatibleProvider({
         let toolCalls;
         try {
           toolCalls = (message.tool_calls ?? []).map((tc) => ({
+            id: tc.id,
             name: tc.function?.name ?? tc.name ?? "",
             args: parseToolCallArguments(tc.function?.arguments ?? tc.arguments),
           }));
