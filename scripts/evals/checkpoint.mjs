@@ -63,6 +63,9 @@ export function createExperimentDefinition(input) {
       skill_hash: String(scenario.skill_hash),
     })),
   };
+  if (input.enclosure_scorer_semantics !== undefined) {
+    frozen.enclosure_scorer_semantics = String(input.enclosure_scorer_semantics);
+  }
   return {
     schema_version: CHECKPOINT_SCHEMA_VERSION,
     experiment_id: sha256Canonical(frozen),

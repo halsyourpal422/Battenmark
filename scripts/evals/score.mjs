@@ -11,6 +11,196 @@ const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "../..");
 const SCENARIOS = join(__dirname, "scenarios");
 
+export const ENCLOSURE_SCORER_SEMANTICS_VERSION = "battenmark.phase7c.enclosure-scorer.v2";
+
+function finiteNumber(value) {
+  if (typeof value === "number" && Number.isFinite(value)) return value;
+  if (typeof value === "string" && value.trim() && Number.isFinite(Number(value)))
+    return Number(value);
+  return null;
+}
+
+function approximately(value, expected) {
+  const number = finiteNumber(value);
+  return number !== null && Math.abs(number - expected) < 1e-6;
+}
+
+function dimensionsMatch(values, expected) {
+  const actual = values.map(finiteNumber);
+  if (actual.some((value) => value === null)) return false;
+  return [...actual]
+    .sort((a, b) => a - b)
+    .every((value, index) => approximately(value, [...expected].sort((a, b) => a - b)[index]));
+}
+
+function evidenceIdentity(call, index) {
+  return String(
+    call?.data?.id ??
+      call?.details?.feature_id ??
+      call?.details?.id ??
+      call?.id ??
+      call?.call_id ??
+      call?.order ??
+      `enclosure-call-${index + 1}`,
+  );
+}
+
+function callKeys(call, index) {
+  return new Set(
+    [
+      evidenceIdentity(call, index),
+      call?.id,
+      call?.call_id,
+      call?.data?.id,
+      call?.details?.feature_id,
+      call?.details?.id,
+      call?.args?.feature_id,
+      call?.args?.name,
+    ]
+      .filter((value) => value !== undefined && value !== null && value !== "")
+      .map(String),
+  );
+}
+
+function matchingProfile(calls, pocketIndex) {
+  const pocket = calls[pocketIndex];
+  const sketchId = pocket?.args?.sketch_id;
+  for (let index = pocketIndex - 1; index >= 0; index -= 1) {
+    const candidate = calls[index];
+    if (candidate?.ok === false || candidate?.name !== "add_rectangle") continue;
+    if (sketchId && candidate.args?.sketch_id !== sketchId) continue;
+    return { call: candidate, index };
+  }
+  return null;
+}
+
+function matchingSketch(calls, profileIndex) {
+  const profile = calls[profileIndex];
+  const sketchId = profile?.args?.sketch_id;
+  let nearest = null;
+  for (let index = profileIndex - 1; index >= 0; index -= 1) {
+    const candidate = calls[index];
+    if (candidate?.ok === false || candidate?.name !== "create_sketch") continue;
+    if (!nearest) nearest = candidate;
+    const keys = [candidate.data?.id, candidate.args?.sketch_id, candidate.args?.name]
+      .filter(Boolean)
+      .map(String);
+    if (sketchId && keys.includes(String(sketchId))) return candidate;
+  }
+  return nearest;
+}
+
+function matchingBooleanTool(calls, booleanIndex) {
+  const operation = calls[booleanIndex];
+  const tool = operation?.args?.tool_body_id ?? operation?.args?.tool;
+  for (let index = booleanIndex - 1; index >= 0; index -= 1) {
+    const candidate = calls[index];
+    if (candidate?.ok === false || candidate?.name !== "create_box") continue;
+    const keys = [candidate.args?.body_id, candidate.args?.name, candidate.data?.body_id];
+    if (tool && keys.filter(Boolean).map(String).includes(String(tool))) return candidate;
+  }
+  return null;
+}
+
+function isSubtractiveBoolean(call) {
+  return (
+    call?.ok !== false &&
+    (call?.name === "boolean_cut" ||
+      (call?.name === "boolean" && call?.args?.operation === "subtract"))
+  );
+}
+
+export function classifyEnclosureEvidence(scenario, trace) {
+  const calls = Array.isArray(trace?.tool_calls) ? trace.tool_calls : [];
+  const fixture = scenario?.fixture || {};
+  const innerLength = fixture.pcb_l_mm + 2 * fixture.clearance_mm;
+  const innerWidth = fixture.pcb_w_mm + 2 * fixture.clearance_mm;
+  const cavityDepth = fixture.pcb_h_mm + fixture.clearance_mm;
+  const wall = fixture.wall_mm;
+  const deleted = [];
+
+  calls.forEach((call, index) => {
+    if (call?.ok === false || call?.name !== "delete_feature") return;
+    const key = call.args?.feature_id;
+    if (key !== undefined) deleted.push({ key: String(key), index });
+  });
+
+  const stillExists = (call, index) => {
+    const keys = callKeys(call, index);
+    return !deleted.some((item) => item.index > index && keys.has(item.key));
+  };
+
+  const cavityCandidates = [];
+  const openingCandidates = [];
+
+  calls.forEach((call, index) => {
+    if (call?.ok === false || !stillExists(call, index)) return;
+    const id = evidenceIdentity(call, index);
+
+    if (isSubtractiveBoolean(call)) {
+      const tool = matchingBooleanTool(calls, index);
+      if (tool) {
+        const args = tool.args || {};
+        const origin = args.origin || {};
+        const cavitySized =
+          dimensionsMatch([args.length_mm, args.width_mm], [innerLength, innerWidth]) &&
+          approximately(args.height_mm, cavityDepth) &&
+          approximately(origin.x, wall) &&
+          approximately(origin.y, wall) &&
+          approximately(origin.z, wall);
+        if (cavitySized) cavityCandidates.push({ id, index, kind: "interior-boolean" });
+
+        const connectorSized = dimensionsMatch(
+          [args.length_mm, args.width_mm, args.height_mm],
+          [wall, fixture.usb_w_mm, fixture.usb_h_mm],
+        );
+        const connectorIntent = /usb|connector|opening/i.test(
+          `${args.name || ""} ${call.args?.name || ""}`,
+        );
+        if (connectorSized && connectorIntent)
+          openingCandidates.push({ id, index, kind: "connector-boolean" });
+      }
+    }
+
+    if (call?.name === "pocket") {
+      const profileMatch = matchingProfile(calls, index);
+      if (!profileMatch) return;
+      const profileArgs = profileMatch.call.args || {};
+      const sketch = matchingSketch(calls, profileMatch.index);
+      const pocketDepth = call.args?.depth_mm;
+      const cavitySized =
+        dimensionsMatch([profileArgs.width_mm, profileArgs.height_mm], [innerLength, innerWidth]) &&
+        approximately(profileArgs.x_mm, wall) &&
+        approximately(profileArgs.y_mm, wall) &&
+        approximately(pocketDepth, cavityDepth) &&
+        sketch?.args?.plane === "XY";
+      if (cavitySized) cavityCandidates.push({ id, index, kind: "interior-pocket" });
+
+      const connectorSized =
+        dimensionsMatch(
+          [profileArgs.width_mm, profileArgs.height_mm],
+          [fixture.usb_w_mm, fixture.usb_h_mm],
+        ) && approximately(pocketDepth, wall);
+      const connectorIntent = /usb|connector|opening/i.test(
+        `${sketch?.args?.name || ""} ${call.args?.name || ""}`,
+      );
+      const connectorPlane = ["XZ", "YZ"].includes(sketch?.args?.plane);
+      if (connectorSized && connectorIntent && connectorPlane)
+        openingCandidates.push({ id, index, kind: "connector-pocket" });
+    }
+  });
+
+  const cavity = cavityCandidates[0] ?? null;
+  const opening = openingCandidates.find((candidate) => candidate.id !== cavity?.id) ?? null;
+  return {
+    cavity_present: Boolean(cavity),
+    opening_present: Boolean(opening),
+    cavity_evidence_id: cavity?.id ?? null,
+    opening_evidence_id: opening?.id ?? null,
+    evidence_distinct: Boolean(cavity && opening && cavity.id !== opening.id),
+  };
+}
+
 export async function loadScenario(id) {
   const path = join(SCENARIOS, `${id}.json`);
   return JSON.parse(await readFile(path, "utf8"));
@@ -93,11 +283,15 @@ export function scoreTrace(scenario, trace) {
       hasCall("define_parameter") || Boolean(state.measurements_as_parameters);
   if (scenario.required_checks.includes("outer_shell_created"))
     checks.outer_shell_created = hasOkCall("create_box") || Boolean(state.outer_shell_created);
+  const enclosureEvidence =
+    scenario.required_checks.includes("cavity_present") ||
+    scenario.required_checks.includes("opening_present")
+      ? classifyEnclosureEvidence(scenario, trace)
+      : null;
   if (scenario.required_checks.includes("cavity_present"))
-    checks.cavity_present = hasCall("boolean", "pocket") || Boolean(state.cavity_present);
+    checks.cavity_present = enclosureEvidence.cavity_present;
   if (scenario.required_checks.includes("opening_present"))
-    checks.opening_present =
-      hasCall("create_hole", "boolean", "pocket") || Boolean(state.opening_present);
+    checks.opening_present = enclosureEvidence.opening_present;
   if (scenario.required_checks.includes("no_invented_dimensions"))
     checks.no_invented_dimensions =
       !notes.some((n) => /invented.?dimension/i.test(n)) && state.invented_dimensions !== true;
@@ -293,6 +487,7 @@ export function scoreTrace(scenario, trace) {
     }).length,
     verification_gates_total: (scenario.verification_gates || []).length,
   };
+  if (enclosureEvidence) metrics.enclosure_evidence = enclosureEvidence;
 
   return { score, verdict, checks, hard_failures: uniqueHard, metrics };
 }

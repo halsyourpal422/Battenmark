@@ -68,6 +68,8 @@
     "eval:skills": "npx tsx scripts/evals/run.mjs",
     "eval:skills:reference": "npx tsx scripts/evals/run.mjs --mode reference",
     "eval:skills:score": "npx tsx scripts/evals/score-test.mjs",
+    "eval:enclosure-score:test": "npx tsx scripts/evals/enclosure-score-tests.mjs",
+    "eval:phase7c4:rescore": "npx tsx scripts/evals/rescore-phase7c4.mjs",
     "eval:provider:test": "npx tsx scripts/evals/providers/provider-tests.mjs",
     "eval:provider:redaction": "npx tsx scripts/evals/providers/secret-redaction-test.mjs",
     "eval:checkpoint:test": "npx tsx scripts/evals/checkpoint-tests.mjs",

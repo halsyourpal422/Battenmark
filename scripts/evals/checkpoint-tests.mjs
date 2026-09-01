@@ -245,6 +245,14 @@ for (const [id, mutate] of [
       }),
   ],
   [
+    "checkpoint-enclosure-scorer-semantics-mismatch-fails-closed",
+    (base) =>
+      experiment({
+        ...base,
+        enclosure_scorer_semantics: "battenmark.phase7c.enclosure-scorer.v2",
+      }),
+  ],
+  [
     "checkpoint-trace-schema-mismatch-fails-closed",
     (base) =>
       experiment({
