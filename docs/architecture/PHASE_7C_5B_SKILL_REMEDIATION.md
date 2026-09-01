@@ -1,6 +1,6 @@
 # Phase 7C.5B — Corrected-Trace Skill Remediation
 
-**Status:** FORENSICS COMPLETE; enclosure remediation proposed
+**Status:** PASS; credential-free remediation verification complete
 
 **Date:** 2026-09-01
 
@@ -269,15 +269,54 @@ behavior in two runs without measurable recovery improvement.
 - Rigid recipes can overfit; derive dimensions from measured inputs and design
   intent instead of embedding evaluation constants.
 
-## Planned regression and future evaluation
+## Exact enclosure revision
 
-A narrow static contract will require the enclosure instruction to distinguish
+Before:
+
+```text
+Model cavity from measured component + clearances; keep parametric.
+outer shell + cavity via create_box / boolean (expression-driven).
+Critical dimensions are parameters with sources; validate clean; cavity extents match.
+```
+
+After, in reusable rather than scenario-specific terms:
+
+```text
+Derive the main internal cavity from measured dimensions and clearances.
+Create a distinct cavity tool with create_box and subtract it from the outer
+body with boolean operation subtract, preserving the open top, walls, and floor.
+Create connector openings as separate downstream features.
+Before final validation/export, confirm the outer body, main cavity, intended
+walls/floor, and independent connector openings all exist.
+```
+
+The skill metadata version changes from `1.0.0` to `1.0.1`. Assembly and
+backend-diagnostics content and metadata remain byte-for-byte unchanged.
+
+## Regression and future evaluation
+
+A narrow static contract requires the enclosure instruction to distinguish
 the main cavity from connector openings, derive the cavity from clearances and
 wall/floor requirements, name only live public operations, and gate export on
 independent feature verification. It cannot establish LLM effectiveness.
 
-Changing the enclosure skill changes its SHA-256 and therefore the canonical
-experiment identity. The old checkpoint must fail closed for a future v2
-experiment. That validation must be credential-free here; the next real A/B
-must be fresh, must not use `--resume`, and requires separate paid
-authorization.
+The contract was first run against the old text: 2/7 checks passed and 5/7
+failed. After the minimal revision, 10/10 checks pass, including live-operation
+validation and checkpoint identity isolation.
+
+The preserved enclosure skill SHA-256 was
+`22a5801c5ea5298b8ac622ca8e82a80c5509ce8679d5d92c5565d35677308f79`.
+The revised `SKILL.md` SHA-256 is
+`3bc622dc1aef21f45dc362fdfe6c2f5e50747eeba8f5b4e2ebd5df27ec3263fd`.
+Holding the historical experiment definition constant except for that skill
+hash changes the canonical experiment ID from
+`94cc29c06defdaff9ee0908d7beb62f7181fb47795bed582f37ff925ec0323bd`
+to `b2409fbbb6c8e6c7b82703cdf7abb3c6271a20bc16547bfcf840c0beae4aeb07`.
+Canonical resume rejects the preserved checkpoint with
+`CHECKPOINT_EXPERIMENT_MISMATCH` before row execution.
+
+All required scorer, trace, backend recovery, checkpoint, mock agent, provider,
+redaction, neutrality, typecheck, core, macOS FreeCAD, Phase 6, formatting, and
+lint checks pass. The read-only historical re-score remains exactly unchanged.
+The next real A/B must be fresh, must not use `--resume`, and requires separate
+paid authorization.
