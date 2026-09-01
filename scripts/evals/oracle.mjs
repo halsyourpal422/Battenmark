@@ -13,8 +13,16 @@ function apply(doc0, ops) {
   return { document: r.document, results: r.results };
 }
 
-function pushCall(trace, name, ok, data, error) {
-  trace.tool_calls.push({ name, ok, data, error });
+function pushCall(trace, name, ok, data, error, args) {
+  trace.tool_calls.push({
+    id: `reference:${trace.scenario_id}:${trace.tool_calls.length + 1}`,
+    order: trace.tool_calls.length + 1,
+    name,
+    args,
+    ok,
+    data,
+    error,
+  });
   if (!ok && error) trace.errors.push({ code: error, message: String(error) });
 }
 
@@ -99,46 +107,88 @@ export function referenceEnclosure(scenario) {
     { op: "define_parameter", name: "pcb_h", value: f.pcb_h_mm },
     { op: "define_parameter", name: "clearance", value: f.clearance_mm },
     { op: "define_parameter", name: "wall", value: f.wall_mm },
-    { op: "create_box", name: "Shell", length_mm: outerL, width_mm: outerW, height_mm: outerH },
   ]) {
     doc = apply(doc, [op]).document;
-    pushCall(trace, op.op, true, {});
+    pushCall(trace, op.op, true, {}, undefined, op);
   }
+  const outerOp = {
+    op: "create_box",
+    name: "Shell",
+    length_mm: outerL,
+    width_mm: outerW,
+    height_mm: outerH,
+    origin: { x: 0, y: 0, z: 0 },
+  };
+  const outer = apply(doc, [outerOp]);
+  doc = outer.document;
+  const outerData = outer.results[0].data;
+  pushCall(trace, outerOp.op, true, outerData, undefined, outerOp);
   try {
     const innerL = f.pcb_l_mm + 2 * f.clearance_mm;
     const innerW = f.pcb_w_mm + 2 * f.clearance_mm;
-    doc = apply(doc, [
-      { op: "create_box", name: "Cavity", length_mm: innerL, width_mm: innerW, height_mm: outerH },
-    ]).document;
-    pushCall(trace, "create_box", true, { role: "cavity" });
-    try {
-      doc = apply(doc, [
-        { op: "boolean", operation: "subtract", target: "Shell", tool: "Cavity" },
-      ]).document;
-      pushCall(trace, "boolean", true, {});
-    } catch (e) {
-      pushCall(trace, "boolean", false, undefined, e.code || e.message);
-      trace.notes.push(`boolean soft-fail: ${e.message}`);
-    }
+    const cavityOp = {
+      op: "create_box",
+      name: "MainCavity",
+      length_mm: innerL,
+      width_mm: innerW,
+      height_mm: outerH - f.wall_mm,
+      origin: { x: f.wall_mm, y: f.wall_mm, z: f.wall_mm },
+    };
+    const cavity = apply(doc, [cavityOp]);
+    doc = cavity.document;
+    const cavityData = cavity.results[0].data;
+    pushCall(trace, cavityOp.op, true, cavityData, undefined, {
+      ...cavityOp,
+      body_id: cavityData.body_id,
+    });
+    const booleanOp = {
+      op: "boolean",
+      operation: "subtract",
+      target_body_id: outerData.body_id,
+      tool_body_id: cavityData.body_id,
+      name: "MainCavityCut",
+    };
+    const cavityCut = apply(doc, [booleanOp]);
+    doc = cavityCut.document;
+    pushCall(trace, booleanOp.op, true, cavityCut.results[0].data, undefined, booleanOp);
     trace.final_state.cavity_present = true;
   } catch (e) {
-    pushCall(trace, "create_box", false, undefined, e.code || e.message);
+    pushCall(trace, "boolean", false, undefined, e.code || e.message);
   }
   try {
-    doc = apply(doc, [
-      {
-        op: "create_hole",
-        body_id: "Body",
-        face: "front_face",
-        diameter_mm: Math.min(f.usb_w_mm, f.usb_h_mm),
-        x_mm: outerL / 2,
-        y_mm: 3,
-        name: "usb",
-      },
-    ]).document;
-    pushCall(trace, "create_hole", true, { role: "usb_opening" });
+    const sketchOp = {
+      op: "create_sketch",
+      body_id: outerData.body_id,
+      name: "USBOpeningSketch",
+      plane: "YZ",
+      origin: { x: 0, y: (outerW - f.usb_w_mm) / 2, z: 3 },
+    };
+    const sketch = apply(doc, [sketchOp]);
+    doc = sketch.document;
+    const sketchData = sketch.results[0].data;
+    pushCall(trace, sketchOp.op, true, sketchData, undefined, sketchOp);
+    const rectangleOp = {
+      op: "add_rectangle",
+      sketch_id: sketchData.id,
+      x_mm: 0,
+      y_mm: 3,
+      width_mm: f.usb_w_mm,
+      height_mm: f.usb_h_mm,
+    };
+    const rectangle = apply(doc, [rectangleOp]);
+    doc = rectangle.document;
+    pushCall(trace, rectangleOp.op, true, rectangle.results[0].data, undefined, rectangleOp);
+    const pocketOp = {
+      op: "pocket",
+      sketch_id: sketchData.id,
+      depth_mm: f.wall_mm,
+      name: "USBOpening",
+    };
+    const opening = apply(doc, [pocketOp]);
+    doc = opening.document;
+    pushCall(trace, pocketOp.op, true, opening.results[0].data, undefined, pocketOp);
   } catch (e) {
-    pushCall(trace, "create_hole", false, undefined, e.code || e.message);
+    pushCall(trace, "pocket", false, undefined, e.code || e.message);
     trace.notes.push(`opening soft-fail: ${e.message}`);
   }
   trace.final_state.opening_present = true;

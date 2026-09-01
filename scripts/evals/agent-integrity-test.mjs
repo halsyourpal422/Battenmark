@@ -153,6 +153,10 @@ await test("real-experiment-identity-binds-frozen-inputs", async () => {
     experiment.evaluation_semantics,
   );
   assert(
+    experiment.enclosure_scorer_semantics === "battenmark.phase7c.enclosure-scorer.v2",
+    experiment.enclosure_scorer_semantics,
+  );
+  assert(
     experiment.trace_schema_version === "battenmark.eval.trace.v1",
     experiment.trace_schema_version,
   );

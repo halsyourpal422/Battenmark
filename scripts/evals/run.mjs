@@ -17,6 +17,7 @@ import {
   scoreTrace,
   loadSkillText,
   skillContextCost,
+  ENCLOSURE_SCORER_SEMANTICS_VERSION,
 } from "./score.mjs";
 import { ORACLES } from "./oracle.mjs";
 import { runAgentLoop, assemblyMockScript, DEFAULT_TURN_BUDGET } from "./agent-loop.mjs";
@@ -135,6 +136,7 @@ export async function buildRealAgentExperiment({
     agent_turn_budget: DEFAULT_TURN_BUDGET,
     tool_catalog_hash: sha256Canonical(catalog.entries),
     evaluation_semantics: EVALUATION_SEMANTICS_VERSION,
+    enclosure_scorer_semantics: ENCLOSURE_SCORER_SEMANTICS_VERSION,
     trace_schema_version: TRACE_SCHEMA_VERSION,
     scenarios,
   });
@@ -314,6 +316,7 @@ async function runAgent(scenarioFilter, conditionArg, { forceMock = false, repea
           provider: cfg.provider,
           model: cfg.model,
           evaluation_semantics: experiment.evaluation_semantics,
+          enclosure_scorer_semantics: experiment.enclosure_scorer_semantics,
           trace_schema_version: experiment.trace_schema_version,
           results,
           summary: summarizeLayerB(results),
