@@ -261,7 +261,9 @@ export function scoreTrace(scenario, trace) {
     checks.preview_rendered = hasOkCall("render_preview") || Boolean(state.preview_rendered);
   if (scenario.required_checks.includes("artifact_exported")) {
     const exported =
-      hasCall("export_step", "export_fcstd", "export_assembly") ||
+      hasOkCall("export_step") ||
+      hasOkCall("export_fcstd") ||
+      hasOkCall("export_assembly") ||
       arts.length > 0 ||
       Boolean(state.artifact_exported);
     checks.artifact_exported = exported;
@@ -307,7 +309,10 @@ export function scoreTrace(scenario, trace) {
   }
   if (scenario.required_checks.includes("constraint_applied"))
     checks.constraint_applied =
-      hasCall("mate_faces", "align_axes", "set_distance") || Boolean(state.constraint_applied);
+      hasOkCall("mate_faces") ||
+      hasOkCall("align_axes") ||
+      hasOkCall("set_distance") ||
+      Boolean(state.constraint_applied);
   if (scenario.required_checks.includes("inspect_assembly_called"))
     checks.inspect_assembly_called =
       hasOkCall("inspect_assembly") || Boolean(state.inspect_assembly_called);

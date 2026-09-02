@@ -149,7 +149,7 @@ await test("real-experiment-identity-binds-frozen-inputs", async () => {
   );
   assert(experiment.tool_catalog_hash.length === 64, "tool catalog hash");
   assert(
-    experiment.evaluation_semantics === "battenmark.phase7c.agent-protocol.v3",
+    experiment.evaluation_semantics === "battenmark.phase7c.identity-integrity.v4",
     experiment.evaluation_semantics,
   );
   assert(

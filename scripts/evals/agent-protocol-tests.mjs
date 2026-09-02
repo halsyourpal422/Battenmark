@@ -106,6 +106,46 @@ await test("P2-assembly-public-result-state-reaches-next-turn", async () => {
     [
       {
         toolCalls: [
+          {
+            name: "create_box",
+            args: { name: "Anchor", length_mm: 60, width_mm: 40, height_mm: 10 },
+          },
+          {
+            name: "create_box",
+            args: { name: "Mover", length_mm: 30, width_mm: 30, height_mm: 12 },
+          },
+          { id: "assembly-1", name: "create_assembly", args: { assembly_id: "assembly" } },
+          {
+            name: "define_component",
+            args: { assembly_id: "assembly", component_id: "anchor" },
+          },
+          {
+            name: "define_component",
+            args: { assembly_id: "assembly", component_id: "mover" },
+          },
+          {
+            name: "create_instance",
+            args: { assembly_id: "assembly", component_id: "anchor", instance_id: "a1" },
+          },
+          {
+            name: "create_instance",
+            args: { assembly_id: "assembly", component_id: "mover", instance_id: "b1" },
+          },
+          { name: "fix_instance", args: { assembly_id: "assembly", instance_id: "a1" } },
+          {
+            name: "mate_faces",
+            args: {
+              assembly_id: "assembly",
+              a_instance: "a1",
+              a_face: "top_face",
+              b_instance: "b1",
+              b_face: "bottom_face",
+            },
+          },
+        ],
+      },
+      {
+        toolCalls: [
           { id: "inspect-1", name: "inspect_assembly", args: { assembly_id: "assembly" } },
           { id: "interference-1", name: "check_interference", args: { assembly_id: "assembly" } },
         ],
@@ -116,7 +156,7 @@ await test("P2-assembly-public-result-state-reaches-next-turn", async () => {
       { output: "Assembly inspection and export are complete." },
     ],
     (request, call) => {
-      if (call !== 2) return;
+      if (call !== 3) return;
       const content = request.messages.at(-1)?.content || "";
       assert(content.includes('"operation": "inspect_assembly"'), content);
       assert(content.includes('"remaining_dof": 3'), content);
@@ -295,7 +335,7 @@ await test("P9-continuation-decision-is-forensic-and-schema-compatible", async (
     const decisions = trace.events.filter((event) => event.kind === "continuation_decision");
     assert(trace.schema_version === "battenmark.eval.trace.v1", trace.schema_version);
     assert(
-      trace.evaluation_semantics === "battenmark.phase7c.agent-protocol.v3",
+      trace.evaluation_semantics === "battenmark.phase7c.identity-integrity.v4",
       trace.evaluation_semantics,
     );
     assert(

@@ -314,10 +314,10 @@ await test("checkpoint-frozen-config-mismatch-fails-closed", () =>
     }
   }));
 
-await test("checkpoint-phase7c5-v2-semantics-cannot-resume-v3", () =>
+await test("checkpoint-phase7c6-v3-semantics-cannot-resume-v4", () =>
   tempCheckpoint(async ({ path }) => {
     const oldExperiment = experiment({
-      evaluation_semantics: "battenmark.phase7c.backend-recovery.v2",
+      evaluation_semantics: "battenmark.phase7c.agent-protocol.v3",
     });
     const oldMatrix = checkpointApi.buildMatrix(oldExperiment);
     let seedCalls = 0;
@@ -331,7 +331,7 @@ await test("checkpoint-phase7c5-v2-semantics-cannot-resume-v3", () =>
           seedCalls += 1;
           if (seedCalls === 2) throw new Error("stop after old row");
           return row(entry, {
-            evaluation_semantics: "battenmark.phase7c.backend-recovery.v2",
+            evaluation_semantics: "battenmark.phase7c.agent-protocol.v3",
           });
         },
       });
@@ -345,7 +345,7 @@ await test("checkpoint-phase7c5-v2-semantics-cannot-resume-v3", () =>
 
     const currentExperiment = experiment({
       ...oldExperiment,
-      evaluation_semantics: "battenmark.phase7c.agent-protocol.v3",
+      evaluation_semantics: "battenmark.phase7c.identity-integrity.v4",
     });
     let providerCalls = 0;
     try {
