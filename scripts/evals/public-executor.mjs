@@ -87,7 +87,15 @@ export async function executePublicTool(name, args = {}, { catalog, state } = {}
     next.box_created = true;
     next.outer_shell_created = true;
   }
-  if (name === "create_hole" || name === "fillet" || name === "chamfer" || name === "boolean")
+  if (
+    name === "create_hole" ||
+    name === "fillet" ||
+    name === "chamfer" ||
+    name === "boolean" ||
+    name === "boolean_cut" ||
+    name === "boolean_union" ||
+    name === "boolean_intersect"
+  )
     next.feature_applied = true;
   if (name === "validate") next.validated = true;
   if (name === "render_preview") next.preview_rendered = true;

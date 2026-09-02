@@ -14,7 +14,9 @@ import {
 import {
   appendTraceEvent,
   completeTrace,
+  createModelToolResult,
   createTraceDocument,
+  formatModelToolResults,
   sanitizeMessages,
   sanitizeToolResult,
   sanitizeTraceValue,
@@ -23,6 +25,34 @@ import {
 } from "./trace.mjs";
 
 export const DEFAULT_TURN_BUDGET = 12;
+export const MAX_ZERO_TOOL_CONTINUATIONS = 1;
+
+const PENDING_ACTION_PATTERN = new RegExp(
+  [
+    "\\b(?:i|we)(?:'ll| will| am going to| are going to)\\b",
+    "\\b(?:let us|let's)\\s+(?:now\\s+)?(?:proceed|continue|execute|perform|run|invoke|call|apply|complete|finish)\\b",
+    "\\b(?:next|following)\\s+(?:action|operation|step|tool|task)\\b",
+    "\\b(?:now|next|then|after that)\\b[^.!?]{0,120}\\b(?:proceed|continue|execute|perform|invoke|call|apply|complete|finish)\\b",
+    "\\bplease\\s+(?:provide|return|show|send)\\b[^.!?]{0,120}\\b(?:result|output|response|information|data)\\b",
+  ].join("|"),
+  "i",
+);
+
+export function classifyZeroToolResponse({ output, hadToolActivity, continuationAttempts }) {
+  const text = String(output ?? "").trim();
+  if (!text) return { classification: "empty", action: "stop", termination: "empty_response" };
+  const pending = hadToolActivity && PENDING_ACTION_PATTERN.test(text);
+  if (!pending)
+    return { classification: "credible_final", action: "stop", termination: "model_stop" };
+  if (continuationAttempts >= MAX_ZERO_TOOL_CONTINUATIONS) {
+    return {
+      classification: "explicit_continuation",
+      action: "stop",
+      termination: "continuation_exhausted",
+    };
+  }
+  return { classification: "explicit_continuation", action: "continue", termination: null };
+}
 
 export async function buildConditionEnvelope(scenario, condition) {
   const skillText = condition === "with-skill" ? await loadSkillText(scenario.skill) : "";
@@ -30,6 +60,9 @@ export async function buildConditionEnvelope(scenario, condition) {
     "You are operating Battenmark through its public CAD tools only.",
     "Do not use private FreeCAD Python, worker commands, or schema bypasses.",
     "Call tools to complete the task. Inspect and export when required.",
+    "Tool results are supplied in subsequent messages as sanitized structured data; inspect those results directly instead of asking the user to provide them.",
+    "Continue invoking tools until the task is actually complete; do not announce a future action and then stop before invoking its required tool.",
+    "Stop only when no further required tool action remains.",
   ].join(" ");
   const userParts = [`Task:\n${scenario.task}`];
   if (skillText) userParts.push(`Battenmark skill (${scenario.skill}):\n${skillText}`);
@@ -99,6 +132,7 @@ export async function runAgentLoop({
   let lastResult = null;
   let turns = 0;
   let toolOrder = 0;
+  let zeroToolContinuations = 0;
   const forensicTrace = traceOptions
     ? createTraceDocument({
         ...traceOptions,
@@ -154,7 +188,13 @@ export async function runAgentLoop({
     errors.push({ code: injected.result.code, message: injected.result.error });
     messages.push({
       role: "user",
-      content: `Tool results:\n${injected.result.observation}`,
+      content: formatModelToolResults([
+        createModelToolResult({
+          operation: injected.name,
+          toolCallId: injected.call_id,
+          result: injected.result,
+        }),
+      ]),
     });
     await persistPartial();
   }
@@ -186,10 +226,49 @@ export async function runAgentLoop({
     });
     const calls = lastResult.toolCalls || [];
     if (!calls.length) {
-      termination = lastResult.output ? "model_stop" : "empty_response";
+      const decision = classifyZeroToolResponse({
+        output: lastResult.output,
+        hadToolActivity: tool_calls.length > 0,
+        continuationAttempts: zeroToolContinuations,
+      });
+      if (decision.action === "continue" && turn === turnBudget) {
+        record({
+          kind: "continuation_decision",
+          turn,
+          reason: "turn_budget_exhausted",
+          classification: decision.classification,
+          action: "stop",
+          attempt: zeroToolContinuations + 1,
+          previous_finish_reason: lastResult.finishReason,
+        });
+        termination = "budget_exhausted";
+        break;
+      }
+      record({
+        kind: "continuation_decision",
+        turn,
+        reason: decision.action === "continue" ? "explicit_pending_action" : decision.termination,
+        classification: decision.classification,
+        action: decision.action,
+        attempt:
+          decision.classification === "explicit_continuation" ? zeroToolContinuations + 1 : 0,
+        previous_finish_reason: lastResult.finishReason,
+      });
+      if (decision.action === "continue") {
+        zeroToolContinuations += 1;
+        messages.push({ role: "assistant", content: lastResult.output || "" });
+        messages.push({
+          role: "user",
+          content:
+            "Your response indicates that required tool work remains. Invoke the next public tool now. Do not repeat the plan or ask the user for tool results already supplied above.",
+        });
+        await persistPartial();
+        continue;
+      }
+      termination = decision.termination;
       break;
     }
-    const observations = [];
+    const modelToolResults = [];
     for (let callIndex = 0; callIndex < calls.length; callIndex++) {
       const call = calls[callIndex];
       toolOrder += 1;
@@ -222,7 +301,9 @@ export async function runAgentLoop({
         });
         errors.push({ code: "PRIVILEGED_TOOL", message: call.name });
         notes.push("bypass schema");
-        observations.push(`error PRIVILEGED_TOOL ${call.name}`);
+        modelToolResults.push(
+          createModelToolResult({ operation: call.name, toolCallId: callId, result: rejected }),
+        );
         record({
           kind: "tool_result",
           source: "model",
@@ -250,8 +331,8 @@ export async function runAgentLoop({
         errors.push({ code: executed.code || "TOOL_ERROR", message: executed.error || call.name });
       if (executed.state) Object.assign(final_state, executed.state);
       if (executed.artifact_id) artifact_ids.push(executed.artifact_id);
-      observations.push(
-        executed.observation || JSON.stringify({ ok: executed.ok !== false, name: call.name }),
+      modelToolResults.push(
+        createModelToolResult({ operation: call.name, toolCallId: callId, result: executed }),
       );
       record({
         kind: "tool_result",
@@ -264,7 +345,7 @@ export async function runAgentLoop({
       });
     }
     messages.push({ role: "assistant", content: lastResult.output || "" });
-    messages.push({ role: "user", content: `Tool results:\n${observations.join("\n")}` });
+    messages.push({ role: "user", content: formatModelToolResults(modelToolResults) });
     await persistPartial();
     if (turn === turnBudget) termination = "budget_exhausted";
   }

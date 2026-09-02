@@ -3,10 +3,17 @@ import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 export const TRACE_SCHEMA_VERSION = "battenmark.eval.trace.v1";
-export const EVALUATION_SEMANTICS_VERSION = "battenmark.phase7c.backend-recovery.v2";
+export const EVALUATION_SEMANTICS_VERSION = "battenmark.phase7c.agent-protocol.v3";
+export const MODEL_TOOL_RESULT_SCHEMA_VERSION = "battenmark.eval.tool-result.v1";
+
+const MODEL_RESULT_MAX_DEPTH = 5;
+const MODEL_RESULT_MAX_OBJECT_KEYS = 40;
+const MODEL_RESULT_MAX_ARRAY_ITEMS = 24;
+const MODEL_RESULT_MAX_STRING_CHARS = 1_000;
+const MODEL_RESULT_MAX_MESSAGE_CHARS = 24_000;
 
 const FORBIDDEN_KEY =
-  /authorization|api[_-]?key|credential|secret|headers?|provider.?metadata|billing|account/i;
+  /authorization|api[_-]?key|credential|secret|headers?|provider.?metadata|billing|account|access[_-]?token|refresh[_-]?token|session[_-]?token|password|private[_-]?key|cookie/i;
 const SECRET_PATTERNS = [
   /Bearer\s+[A-Za-z0-9._~+/-]+=*/gi,
   /sk-[A-Za-z0-9_-]+/g,
@@ -64,6 +71,95 @@ export function sanitizeToolResult(result) {
     if (result?.[key] !== undefined) safe[key] = sanitizeTraceValue(result[key]);
   }
   return safe;
+}
+
+function boundModelValue(value, depth = 0) {
+  if (typeof value === "string") {
+    return value.length > MODEL_RESULT_MAX_STRING_CHARS
+      ? `${value.slice(0, MODEL_RESULT_MAX_STRING_CHARS)}[TRUNCATED]`
+      : value;
+  }
+  if (value === null || value === undefined || typeof value !== "object") return value;
+  if (depth >= MODEL_RESULT_MAX_DEPTH) return "[MAX_DEPTH]";
+  if (Array.isArray(value)) {
+    const bounded = value
+      .slice(0, MODEL_RESULT_MAX_ARRAY_ITEMS)
+      .map((item) => boundModelValue(item, depth + 1));
+    if (value.length > MODEL_RESULT_MAX_ARRAY_ITEMS) bounded.push("[TRUNCATED_ITEMS]");
+    return bounded;
+  }
+  const keys = Object.keys(value).sort();
+  const bounded = Object.fromEntries(
+    keys
+      .slice(0, MODEL_RESULT_MAX_OBJECT_KEYS)
+      .map((key) => [key, boundModelValue(value[key], depth + 1)]),
+  );
+  if (keys.length > MODEL_RESULT_MAX_OBJECT_KEYS) bounded._truncated_keys = true;
+  return bounded;
+}
+
+export function createModelToolResult({ operation, toolCallId, result }) {
+  const safe = sanitizeToolResult(result);
+  const modelResult = {
+    tool_call_id: redactString(toolCallId ?? ""),
+    operation: redactString(operation ?? ""),
+    ok: safe.ok,
+  };
+  for (const key of ["code", "message", "details", "data", "state", "artifact_id"]) {
+    if (safe[key] !== undefined) modelResult[key] = boundModelValue(safe[key]);
+  }
+  return modelResult;
+}
+
+export function formatModelToolResults(results) {
+  const payload = {
+    schema_version: MODEL_TOOL_RESULT_SCHEMA_VERSION,
+    results: (results || []).map((result) => boundModelValue(result)),
+  };
+  let content = JSON.stringify(payload, null, 2);
+  if (content.length <= MODEL_RESULT_MAX_MESSAGE_CHARS) return `Tool results:\n${content}`;
+
+  const summaries = payload.results.map((result) => ({
+    tool_call_id: result.tool_call_id,
+    operation: result.operation,
+    ok: result.ok,
+    code: result.code,
+    message: result.message,
+    state: result.state,
+    artifact_id: result.artifact_id,
+    truncated: true,
+  }));
+  content = JSON.stringify(
+    { schema_version: MODEL_TOOL_RESULT_SCHEMA_VERSION, results: summaries },
+    null,
+    2,
+  );
+  if (content.length > MODEL_RESULT_MAX_MESSAGE_CHARS) {
+    const minimal = summaries.map((result) => ({
+      tool_call_id: result.tool_call_id,
+      operation: result.operation,
+      ok: result.ok,
+      code: result.code,
+      truncated: true,
+    }));
+    while (
+      minimal.length > 1 &&
+      JSON.stringify({ schema_version: MODEL_TOOL_RESULT_SCHEMA_VERSION, results: minimal })
+        .length > MODEL_RESULT_MAX_MESSAGE_CHARS
+    ) {
+      minimal.pop();
+    }
+    content = JSON.stringify(
+      {
+        schema_version: MODEL_TOOL_RESULT_SCHEMA_VERSION,
+        results: minimal,
+        omitted_results: summaries.length - minimal.length,
+      },
+      null,
+      2,
+    );
+  }
+  return `Tool results:\n${content}`;
 }
 
 function canonicalize(value) {

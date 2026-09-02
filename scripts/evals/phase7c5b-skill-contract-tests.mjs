@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-import { readFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join, dirname } from "node:path";
 import { fileURLToPath } from "node:url";
 import { TOOL_NAMES } from "../../src/cad/schema.ts";
@@ -14,8 +15,30 @@ const root = join(dirname(fileURLToPath(import.meta.url)), "../..");
 const enclosurePath = join(root, "skills/enclosure/SKILL.md");
 const enclosure = await readFile(enclosurePath, "utf8");
 const toolNames = new Set(TOOL_NAMES);
-const checkpointPath = join(root, "scripts/evals/results/agent-checkpoint.json");
-const checkpoint = JSON.parse(await readFile(checkpointPath, "utf8"));
+const historicalSkillHash = "22a5801c5ea5298b8ac622ca8e82a80c5509ce8679d5d92c5565d35677308f79";
+const historicalExperiment = createExperimentDefinition({
+  battenmark_sha: "0f3aa05307e5130af36078d2b151fe93539438c9",
+  provider: "openai-compatible",
+  model: "gpt-4o",
+  temperature: 0,
+  max_output_tokens: 4096,
+  conditions: ["no-skill", "with-skill"],
+  repetitions: 3,
+  agent_turn_budget: 12,
+  tool_catalog_hash: "phase7c5b-contract-fixture",
+  evaluation_semantics: "battenmark.phase7c.backend-recovery.v2",
+  trace_schema_version: "none",
+  enclosure_scorer_semantics: "battenmark.phase7c.enclosure-scorer.v2",
+  scenarios: [
+    {
+      key: "enclosure",
+      id: "enclosure-001",
+      scenario_hash: "phase7c5b-enclosure-scenario",
+      skill: "enclosure",
+      skill_hash: historicalSkillHash,
+    },
+  ],
+});
 
 let failures = 0;
 let checks = 0;
@@ -81,34 +104,65 @@ check(
   ),
 );
 
-const historicalEnclosure = checkpoint.experiment.scenarios.find(
+const historicalEnclosure = historicalExperiment.scenarios.find(
   (scenario) => scenario.key === "enclosure",
 );
 const currentSkillHash = sha256Text(enclosure);
 const changedExperiment = createExperimentDefinition({
-  ...checkpoint.experiment,
-  scenarios: checkpoint.experiment.scenarios.map((scenario) =>
+  ...historicalExperiment,
+  scenarios: historicalExperiment.scenarios.map((scenario) =>
     scenario.key === "enclosure" ? { ...scenario, skill_hash: currentSkillHash } : scenario,
   ),
 });
 check(
   "enclosure skill content hash changed from the preserved experiment",
-  historicalEnclosure?.skill_hash ===
-    "22a5801c5ea5298b8ac622ca8e82a80c5509ce8679d5d92c5565d35677308f79" &&
+  historicalEnclosure?.skill_hash === historicalSkillHash &&
     currentSkillHash !== historicalEnclosure.skill_hash,
 );
 check(
   "changed skill hash changes canonical experiment identity",
-  changedExperiment.experiment_id !== checkpoint.experiment_id,
+  changedExperiment.experiment_id !== historicalExperiment.experiment_id,
 );
 
 let resumeError;
+const tempDirectory = await mkdtemp(join(tmpdir(), "battenmark-phase7c5b-contract-"));
+const checkpointPath = join(tempDirectory, "agent-checkpoint.json");
 try {
+  let rows = 0;
+  try {
+    await runCheckpointedMatrix({
+      experiment: historicalExperiment,
+      matrix: buildMatrix(historicalExperiment),
+      checkpointPath,
+      resume: false,
+      executeRow: async (entry) => {
+        rows += 1;
+        if (rows > 1) throw new Error("fixture seeded");
+        return {
+          schema: "battenmark.eval.agent.v1",
+          matrix_key: entry.matrix_key,
+          scenario_id: entry.scenario_id,
+          skill: entry.skill,
+          condition: entry.condition,
+          provider: historicalExperiment.provider,
+          model: historicalExperiment.model,
+          temperature: historicalExperiment.temperature,
+          run: entry.run,
+          score: 92,
+          verdict: "PASS",
+          termination: "model_stop",
+          execution_mode: "real-agent",
+          evaluation_semantics: historicalExperiment.evaluation_semantics,
+        };
+      },
+    });
+  } catch (error) {
+    if (error.message !== "fixture seeded") throw error;
+  }
   await runCheckpointedMatrix({
     experiment: changedExperiment,
     matrix: buildMatrix(changedExperiment),
     checkpointPath,
-    tracesDir: join(root, "scripts/evals/results/traces"),
     resume: true,
     executeRow: async () => {
       throw new Error("resume mismatch should be rejected before row execution");
@@ -116,9 +170,11 @@ try {
   });
 } catch (error) {
   resumeError = error;
+} finally {
+  await rm(tempDirectory, { recursive: true, force: true });
 }
 check(
-  "preserved checkpoint fails closed under changed skill content",
+  "historical checkpoint fixture fails closed under changed skill content",
   resumeError?.code === "CHECKPOINT_EXPERIMENT_MISMATCH",
 );
 
