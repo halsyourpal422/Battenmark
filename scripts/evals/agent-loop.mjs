@@ -392,64 +392,91 @@ export async function runAgentLoop({
 }
 
 export function assemblyMockScript() {
+  let projectId;
+  const withProject = (args = {}) => ({ project_id: projectId, ...args });
   return [
     { toolCalls: [{ name: "project_create", args: { name: "eval-assembly" } }] },
-    {
+    (request) => {
+      const content = request.messages.at(-1)?.content || "";
+      const payload = JSON.parse(content.slice(content.indexOf("{")));
+      projectId = payload.results.find((result) => result.operation === "project_create")?.data
+        ?.project_id;
+      if (!projectId) throw new Error("mock assembly script did not receive project_id");
+      return {
+        toolCalls: [
+          {
+            name: "create_box",
+            args: withProject({ length_mm: 60, width_mm: 40, height_mm: 10, name: "Anchor" }),
+          },
+        ],
+      };
+    },
+    () => ({
       toolCalls: [
         {
           name: "create_box",
-          args: { length_mm: 60, width_mm: 40, height_mm: 10, name: "Anchor" },
+          args: withProject({ length_mm: 30, width_mm: 30, height_mm: 12, name: "Mover" }),
         },
       ],
-    },
-    {
-      toolCalls: [
-        { name: "create_box", args: { length_mm: 30, width_mm: 30, height_mm: 12, name: "Mover" } },
-      ],
-    },
-    { toolCalls: [{ name: "create_assembly", args: { name: "asm" } }] },
-    {
+    }),
+    () => ({ toolCalls: [{ name: "create_assembly", args: withProject({ name: "asm" }) }] }),
+    () => ({
       toolCalls: [
         {
           name: "define_component",
-          args: { assembly_id: "asm", component_id: "anchor", name: "anchor" },
+          args: withProject({ assembly_id: "asm", component_id: "anchor", name: "anchor" }),
         },
         {
           name: "define_component",
-          args: { assembly_id: "asm", component_id: "mover", name: "mover" },
+          args: withProject({ assembly_id: "asm", component_id: "mover", name: "mover" }),
         },
       ],
-    },
-    {
+    }),
+    () => ({
       toolCalls: [
         {
           name: "create_instance",
-          args: { assembly_id: "asm", component_id: "anchor", instance_id: "a1" },
+          args: withProject({ assembly_id: "asm", component_id: "anchor", instance_id: "a1" }),
         },
         {
           name: "create_instance",
-          args: { assembly_id: "asm", component_id: "mover", instance_id: "b1" },
+          args: withProject({ assembly_id: "asm", component_id: "mover", instance_id: "b1" }),
         },
       ],
-    },
-    { toolCalls: [{ name: "fix_instance", args: { assembly_id: "asm", instance_id: "a1" } }] },
-    {
+    }),
+    () => ({
+      toolCalls: [
+        {
+          name: "fix_instance",
+          args: withProject({ assembly_id: "asm", instance_id: "a1" }),
+        },
+      ],
+    }),
+    () => ({
       toolCalls: [
         {
           name: "mate_faces",
-          args: {
+          args: withProject({
             assembly_id: "asm",
             a_instance: "a1",
             a_face: "top_face",
             b_instance: "b1",
             b_face: "bottom_face",
-          },
+          }),
         },
       ],
-    },
-    { toolCalls: [{ name: "inspect_assembly", args: { assembly_id: "asm" } }] },
-    { toolCalls: [{ name: "check_interference", args: { assembly_id: "asm" } }] },
-    { toolCalls: [{ name: "export_assembly", args: { assembly_id: "asm", format: "step" } }] },
+    }),
+    () => ({
+      toolCalls: [{ name: "inspect_assembly", args: withProject({ assembly_id: "asm" }) }],
+    }),
+    () => ({
+      toolCalls: [{ name: "check_interference", args: withProject({ assembly_id: "asm" }) }],
+    }),
+    () => ({
+      toolCalls: [
+        { name: "export_assembly", args: withProject({ assembly_id: "asm", format: "step" }) },
+      ],
+    }),
     { output: "done", toolCalls: [] },
   ];
 }

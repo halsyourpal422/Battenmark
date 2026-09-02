@@ -2,6 +2,9 @@
  * Phase 7C.2 — Public-operation executor for evaluation.
  * Rejects privileged/private tools. Never touches backend internals.
  */
+import { quatFromEulerXYZDeg } from "../../src/cad/assembly/transforms.ts";
+import { evaluateExpression, resolveParameters } from "../../src/cad/expressions.ts";
+
 const PRIVATE_NAMES = /freecad_python|exec_shell|eval_code|eval_python|worker\.py/i;
 const EVALUATION_REGISTRY = Symbol.for("battenmark.eval.object-registry");
 const PUBLIC_INSPECTION_LIMIT = 24;
@@ -22,11 +25,15 @@ export async function loadPublicCatalog() {
   const schema = await import("../../src/cad/schema.ts");
   cached = {
     names: new Set(schema.TOOL_NAMES),
-    entries: schema.TOOL_CATALOG.map((t) => ({
-      name: t.name,
-      description: t.description,
-      parameters: { type: "object", properties: t.properties || {}, required: t.required || [] },
-    })),
+    entries: schema.TOOL_CATALOG.map((entry) => {
+      const external = schema.toOpenAiTool(entry, true).function;
+      return {
+        name: external.name,
+        description: external.description,
+        parameters: external.parameters,
+      };
+    }),
+    getCatalogEntry: schema.getCatalogEntry,
     validateToolArgs: schema.validateToolArgs,
     isPrivilegedTool: schema.isPrivilegedTool,
   };
@@ -82,6 +89,7 @@ function freshRegistry() {
   return {
     project: null,
     document: null,
+    parameters: [],
     bodies: [],
     features: [],
     assemblies: [],
@@ -139,6 +147,39 @@ function findComponent(assembly, identity) {
 
 function findInstance(assembly, identity) {
   return assembly?.instances.find((instance) => instance.instance_id === identity);
+}
+
+function resolveEvaluationDimension(registry, value, fallback = 0) {
+  if (value === undefined || value === null) return fallback;
+  if (typeof value === "number") return value;
+  const expression = typeof value === "object" && "expr" in value ? value.expr : value;
+  const resolved = Number(evaluateExpression(expression, resolveParameters(registry.parameters)));
+  if (!Number.isFinite(resolved)) throw new Error(`Expression '${expression}' did not resolve.`);
+  return resolved;
+}
+
+function transformFromArgs(registry, position, rotation, previous) {
+  const transform = structuredClone(
+    previous || {
+      translation: { x: 0, y: 0, z: 0 },
+      rotation: { x: 0, y: 0, z: 0, w: 1 },
+    },
+  );
+  if (position) {
+    transform.translation = {
+      x: resolveEvaluationDimension(registry, position.x, transform.translation.x),
+      y: resolveEvaluationDimension(registry, position.y, transform.translation.y),
+      z: resolveEvaluationDimension(registry, position.z, transform.translation.z),
+    };
+  }
+  if (rotation) {
+    transform.rotation = quatFromEulerXYZDeg(
+      resolveEvaluationDimension(registry, rotation.x),
+      resolveEvaluationDimension(registry, rotation.y),
+      resolveEvaluationDimension(registry, rotation.z),
+    );
+  }
+  return transform;
 }
 
 function successful(name, state, data, extra = {}) {
@@ -202,7 +243,12 @@ function publicDocument(registry) {
     id: registry.document?.document_id || "doc_1",
     name: registry.document?.name || "Untitled",
     units: "mm",
-    parameters: [],
+    parameters: registry.parameters.slice(0, PUBLIC_INSPECTION_LIMIT).map((parameter) => ({
+      name: parameter.name,
+      value: parameter.value,
+      unit: parameter.unit,
+      expression: parameter.expression ?? null,
+    })),
     bodies,
     feature_count: registry.features.length,
     revision_count: 0,
@@ -251,7 +297,9 @@ function inspectAssemblyData(assembly) {
       parametric: component.source === "native",
       bodies: component.body_ids.length,
       features: component.feature_count,
-      parameters: [],
+      parameters: component.parameters
+        .slice(0, PUBLIC_INSPECTION_LIMIT)
+        .map((parameter) => parameter.name),
     })),
     instances,
     constraints: assembly.constraints.slice(0, PUBLIC_INSPECTION_LIMIT).map((constraint) => ({
@@ -291,6 +339,26 @@ export async function executePublicTool(name, args = {}, { catalog, state } = {}
 
   const next = nextState(state);
   const registry = registryOf(next);
+  const entry = cat.getCatalogEntry?.(name);
+  if (entry?.needsProject) {
+    const requested = typeof args.project_id === "string" ? args.project_id : "";
+    if (!requested) {
+      return referenceFailure(name, next, "MALFORMED_REQUEST", "project_id is required.", {
+        suggestion: "Call project_create first and pass the returned project_id.",
+      });
+    }
+    if (
+      !registry.project ||
+      (requested !== registry.project.project_id && requested !== registry.project.slug)
+    ) {
+      return referenceFailure(
+        name,
+        next,
+        "PROJECT_NOT_FOUND",
+        `Project '${requested}' was not found.`,
+      );
+    }
+  }
   if (name === "project_create") {
     const projectId = String(args.slug || args.name || args.project_id || "eval-project");
     next.project_id = projectId;
@@ -300,6 +368,7 @@ export async function executePublicTool(name, args = {}, { catalog, state } = {}
       slug: String(args.slug || projectId),
     };
     registry.document = { document_id: "doc_1", name: String(args.name || projectId) };
+    registry.parameters = [];
     registry.bodies = [];
     registry.features = [];
     registry.assemblies = [];
@@ -330,7 +399,9 @@ export async function executePublicTool(name, args = {}, { catalog, state } = {}
       name: registry.project.name,
       slug: registry.project.slug,
       feature_count: registry.features.length,
-      parameters: [],
+      parameters: registry.parameters
+        .slice(0, PUBLIC_INSPECTION_LIMIT)
+        .map((parameter) => parameter.name),
     });
   }
   if (name === "project_inspect") {
@@ -360,7 +431,19 @@ export async function executePublicTool(name, args = {}, { catalog, state } = {}
     registry.bodies.push({ body_id: bodyId, name: bodyName });
     return successful(name, next, { id: bodyId, name: bodyName });
   }
-  if (name === "define_parameter") next.parameters_count = (next.parameters_count || 0) + 1;
+  if (name === "define_parameter") {
+    const parameter = {
+      name: String(args.name),
+      value: Number(args.value),
+      unit: String(args.unit || "mm"),
+      ...(args.expression === undefined ? {} : { expression: String(args.expression) }),
+    };
+    const existing = registry.parameters.findIndex((item) => item.name === parameter.name);
+    if (existing >= 0) registry.parameters[existing] = parameter;
+    else registry.parameters.push(parameter);
+    next.parameters_count = registry.parameters.length;
+    return successful(name, next, { name: parameter.name, value: parameter.value });
+  }
   if (name === "create_box") {
     let body;
     if (args.body_id) {
@@ -473,6 +556,7 @@ export async function executePublicTool(name, args = {}, { catalog, state } = {}
       body_ids: bodyIds,
       feature_count: featureCount,
       source: imported ? "imported" : "native",
+      parameters: imported ? [] : structuredClone(registry.parameters),
     });
     next.components_defined = true;
     return successful(name, next, {
@@ -514,14 +598,12 @@ export async function executePublicTool(name, args = {}, { catalog, state } = {}
         `Instance '${instanceId}' already exists. Instance ids are stable identity.`,
       );
     }
-    const transform = {
-      translation: {
-        x: Number(args.position?.x || 0),
-        y: Number(args.position?.y || 0),
-        z: Number(args.position?.z || 0),
-      },
-      rotation: { x: 0, y: 0, z: 0, w: 1 },
-    };
+    let transform;
+    try {
+      transform = transformFromArgs(registry, args.position, args.rotation_euler_xyz_deg);
+    } catch (error) {
+      return referenceFailure(name, next, "EXPRESSION_ERROR", String(error.message || error));
+    }
     assembly.instances.push({
       instance_id: instanceId,
       component_id: component.component_id,
@@ -558,6 +640,16 @@ export async function executePublicTool(name, args = {}, { catalog, state } = {}
         fixed: true,
       });
     }
+    try {
+      instance.transform = transformFromArgs(
+        registry,
+        args.position,
+        args.rotation_euler_xyz_deg,
+        instance.transform,
+      );
+    } catch (error) {
+      return referenceFailure(name, next, "EXPRESSION_ERROR", String(error.message || error));
+    }
     return successful(name, next, {
       assembly_id: found.assembly.assembly_id,
       instance_id: instance.instance_id,
@@ -586,6 +678,18 @@ export async function executePublicTool(name, args = {}, { catalog, state } = {}
         { suggestion: "Parameters apply to native component definitions only." },
       );
     }
+    const parameter = component.parameters.find((item) => item.name === args.name);
+    if (!parameter) {
+      return referenceFailure(
+        name,
+        next,
+        "UNKNOWN_PARAMETER",
+        `Component '${component.component_id}' has no parameter '${args.name}'.`,
+        { available: component.parameters.map((item) => item.name) },
+      );
+    }
+    parameter.value = Number(args.value);
+    delete parameter.expression;
     return successful(name, next, {
       assembly_id: found.assembly.assembly_id,
       component_id: component.component_id,

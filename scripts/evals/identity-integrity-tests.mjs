@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { runAgentLoop } from "./agent-loop.mjs";
-import { executePublicTool } from "./public-executor.mjs";
+import { executePublicTool, loadPublicCatalog } from "./public-executor.mjs";
 import {
   EVALUATION_SEMANTICS_VERSION,
   createModelToolResult,
@@ -8,9 +8,24 @@ import {
 } from "./trace.mjs";
 
 const results = [];
+const POSITIVE_STATE_KEYS = [
+  "box_created",
+  "outer_shell_created",
+  "components_defined",
+  "instances_created",
+  "reference_grounded",
+  "constraint_applied",
+  "inspect_assembly_called",
+  "interference_checked",
+  "artifact_exported",
+];
 
 function assert(condition, message) {
   if (!condition) throw new Error(message);
+}
+
+function positiveState(state) {
+  return Object.fromEntries(POSITIVE_STATE_KEYS.map((key) => [key, Boolean(state?.[key])]));
 }
 
 async function test(id, fn) {
@@ -40,19 +55,23 @@ function resultFor(payload, operation) {
   return result;
 }
 
-async function executeSequence(steps) {
-  let state = {};
-  const output = [];
+async function executeProjectSequence(projectName, steps) {
+  const created = await executePublicTool("project_create", { name: projectName }, { state: {} });
+  assert(created.ok && created.data?.project_id, JSON.stringify(created));
+  const projectId = created.data.project_id;
+  let state = created.state;
+  const output = [{ name: "project_create", result: created }];
   for (const [name, args] of steps) {
-    const result = await executePublicTool(name, args, { state });
+    const result = await executePublicTool(name, { project_id: projectId, ...args }, { state });
     state = result.state || state;
     output.push({ name, result });
   }
-  return { state, output };
+  return { projectId, state, output };
 }
 
 await test("I1-create-identities-reach-next-model-turn", async () => {
   let phase = 0;
+  let projectId;
   let bodyIds = [];
   let assemblyId;
   let componentIds = [];
@@ -67,15 +86,30 @@ await test("I1-create-identities-reach-next-model-turn", async () => {
         };
       }
       if (phase === 2) {
+        const { payload } = parseLastToolResults(request);
+        projectId = resultFor(payload, "project_create").data?.project_id;
+        assert(projectId, JSON.stringify(payload));
         return {
           toolCalls: [
             {
               name: "create_box",
-              args: { name: "Anchor", length_mm: 60, width_mm: 40, height_mm: 10 },
+              args: {
+                project_id: projectId,
+                name: "Anchor",
+                length_mm: 60,
+                width_mm: 40,
+                height_mm: 10,
+              },
             },
             {
               name: "create_box",
-              args: { name: "Mover", length_mm: 30, width_mm: 30, height_mm: 12 },
+              args: {
+                project_id: projectId,
+                name: "Mover",
+                length_mm: 30,
+                width_mm: 30,
+                height_mm: 12,
+              },
             },
           ],
         };
@@ -90,7 +124,11 @@ await test("I1-create-identities-reach-next-model-turn", async () => {
           content,
         );
         assert(!/worker\.py|source_path|private[_-]?key|api[_-]?key/i.test(content), content);
-        return { toolCalls: [{ name: "create_assembly", args: { name: "eval-asm" } }] };
+        return {
+          toolCalls: [
+            { name: "create_assembly", args: { project_id: projectId, name: "eval-asm" } },
+          ],
+        };
       }
       if (phase === 4) {
         const { payload } = parseLastToolResults(request);
@@ -100,6 +138,7 @@ await test("I1-create-identities-reach-next-model-turn", async () => {
           toolCalls: bodyIds.map((bodyId, index) => ({
             name: "define_component",
             args: {
+              project_id: projectId,
               assembly_id: assemblyId,
               name: index === 0 ? "AnchorComponent" : "MoverComponent",
               include: { body_ids: [bodyId] },
@@ -115,6 +154,7 @@ await test("I1-create-identities-reach-next-model-turn", async () => {
           toolCalls: componentIds.map((componentId, index) => ({
             name: "create_instance",
             args: {
+              project_id: projectId,
               assembly_id: assemblyId,
               component_id: componentId,
               instance_id: index ? "b1" : "a1",
@@ -144,8 +184,7 @@ await test("I1-create-identities-reach-next-model-turn", async () => {
 });
 
 await test("I2-fabricated-references-fail-with-public-errors", async () => {
-  const seeded = await executeSequence([
-    ["project_create", { name: "references" }],
+  const seeded = await executeProjectSequence("references", [
     ["create_box", { name: "Anchor", length_mm: 1, width_mm: 1, height_mm: 1 }],
     ["create_assembly", { assembly_id: "known-assembly" }],
   ]);
@@ -195,7 +234,11 @@ await test("I2-fabricated-references-fail-with-public-errors", async () => {
     ],
   ];
   for (const [name, args, code, forbiddenFlag] of attempts) {
-    const result = await executePublicTool(name, args, { state });
+    const result = await executePublicTool(
+      name,
+      { project_id: seeded.projectId, ...args },
+      { state },
+    );
     state = result.state || state;
     assert(result.ok === false, `${name} unexpectedly succeeded`);
     assert(result.code === code, `${name} code=${result.code}`);
@@ -205,6 +248,7 @@ await test("I2-fabricated-references-fail-with-public-errors", async () => {
 
 function fullAssemblyProvider({ inspectFallback = false } = {}) {
   let phase = 0;
+  let projectId;
   let bodyIds = [];
   let assemblyId;
   let componentIds = [];
@@ -214,20 +258,38 @@ function fullAssemblyProvider({ inspectFallback = false } = {}) {
     get fallbackInspections() {
       return fallbackInspections;
     },
+    get projectId() {
+      return projectId;
+    },
     async run(request) {
       phase += 1;
       if (phase === 1)
         return { toolCalls: [{ name: "project_create", args: { name: "eval-assembly" } }] };
       if (phase === 2) {
+        const { payload } = parseLastToolResults(request);
+        projectId = resultFor(payload, "project_create").data?.project_id;
+        assert(projectId, JSON.stringify(payload));
         return {
           toolCalls: [
             {
               name: "create_box",
-              args: { name: "Anchor", length_mm: 60, width_mm: 40, height_mm: 10 },
+              args: {
+                project_id: projectId,
+                name: "Anchor",
+                length_mm: 60,
+                width_mm: 40,
+                height_mm: 10,
+              },
             },
             {
               name: "create_box",
-              args: { name: "Mover", length_mm: 30, width_mm: 30, height_mm: 12 },
+              args: {
+                project_id: projectId,
+                name: "Mover",
+                length_mm: 30,
+                width_mm: 30,
+                height_mm: 12,
+              },
             },
           ],
         };
@@ -237,23 +299,32 @@ function fullAssemblyProvider({ inspectFallback = false } = {}) {
         bodyIds = payload.results.map((entry) => entry.data?.body_id).filter(Boolean);
         if (inspectFallback && bodyIds.length !== 2) {
           fallbackInspections += 1;
-          return { toolCalls: [{ name: "inspect_document", args: {} }] };
+          return {
+            toolCalls: [{ name: "inspect_document", args: { project_id: projectId } }],
+          };
         }
         assert(bodyIds.length === 2, JSON.stringify(payload));
-        return { toolCalls: [{ name: "create_assembly", args: { name: "eval-asm" } }] };
+        return {
+          toolCalls: [
+            { name: "create_assembly", args: { project_id: projectId, name: "eval-asm" } },
+          ],
+        };
       }
       if (phase === 4) {
         const { payload } = parseLastToolResults(request);
         assemblyId = resultFor(payload, "create_assembly").data?.assembly_id;
         if (inspectFallback && !assemblyId) {
           fallbackInspections += 1;
-          return { toolCalls: [{ name: "inspect_document", args: {} }] };
+          return {
+            toolCalls: [{ name: "inspect_document", args: { project_id: projectId } }],
+          };
         }
         assert(assemblyId, JSON.stringify(payload));
         return {
           toolCalls: bodyIds.map((bodyId, index) => ({
             name: "define_component",
             args: {
+              project_id: projectId,
               assembly_id: assemblyId,
               name: index ? "MoverComponent" : "AnchorComponent",
               include: { body_ids: [bodyId] },
@@ -266,13 +337,16 @@ function fullAssemblyProvider({ inspectFallback = false } = {}) {
         componentIds = payload.results.map((entry) => entry.data?.component_id).filter(Boolean);
         if (inspectFallback && componentIds.length !== 2) {
           fallbackInspections += 1;
-          return { toolCalls: [{ name: "inspect_document", args: {} }] };
+          return {
+            toolCalls: [{ name: "inspect_document", args: { project_id: projectId } }],
+          };
         }
         assert(componentIds.length === 2, JSON.stringify(payload));
         return {
           toolCalls: componentIds.map((componentId, index) => ({
             name: "create_instance",
             args: {
+              project_id: projectId,
               assembly_id: assemblyId,
               component_id: componentId,
               instance_id: index ? "b1" : "a1",
@@ -288,10 +362,14 @@ function fullAssemblyProvider({ inspectFallback = false } = {}) {
         );
         return {
           toolCalls: [
-            { name: "fix_instance", args: { assembly_id: assemblyId, instance_id: "a1" } },
+            {
+              name: "fix_instance",
+              args: { project_id: projectId, assembly_id: assemblyId, instance_id: "a1" },
+            },
             {
               name: "mate_faces",
               args: {
+                project_id: projectId,
                 assembly_id: assemblyId,
                 a_instance: "a1",
                 a_face: "top_face",
@@ -308,8 +386,14 @@ function fullAssemblyProvider({ inspectFallback = false } = {}) {
         assert(resultFor(payload, "mate_faces").data?.constraint_id, JSON.stringify(payload));
         return {
           toolCalls: [
-            { name: "inspect_assembly", args: { assembly_id: assemblyId } },
-            { name: "check_interference", args: { assembly_id: assemblyId } },
+            {
+              name: "inspect_assembly",
+              args: { project_id: projectId, assembly_id: assemblyId },
+            },
+            {
+              name: "check_interference",
+              args: { project_id: projectId, assembly_id: assemblyId },
+            },
           ],
         };
       }
@@ -321,8 +405,14 @@ function fullAssemblyProvider({ inspectFallback = false } = {}) {
         assert(resultFor(payload, "check_interference").ok, JSON.stringify(payload));
         return {
           toolCalls: [
-            { name: "rebuild_assembly", args: { assembly_id: assemblyId } },
-            { name: "export_assembly", args: { assembly_id: assemblyId, format: "step" } },
+            {
+              name: "rebuild_assembly",
+              args: { project_id: projectId, assembly_id: assemblyId },
+            },
+            {
+              name: "export_assembly",
+              args: { project_id: projectId, assembly_id: assemblyId, format: "step" },
+            },
           ],
         };
       }
@@ -353,6 +443,7 @@ await test("I3-full-assembly-chain-uses-only-returned-identities", async () => {
   assert(row.checks.constraint_applied === true, JSON.stringify(row.checks));
   assert(row.checks.artifact_exported === true, JSON.stringify(row.checks));
   assert(row.hard_failures.length === 0, JSON.stringify(row.hard_failures));
+  assert(provider.projectId, "full chain did not capture returned project identity");
 });
 
 await test("I4-v3-inspection-loop-fallback-is-not-needed-with-v4-results", async () => {
@@ -373,41 +464,71 @@ await test("I4-v3-inspection-loop-fallback-is-not-needed-with-v4-results", async
 
 await test("I5-guessed-assembly-identities-receive-no-success-credit", async () => {
   let phase = 0;
+  let projectId;
   const provider = {
     id: "mock",
-    async run() {
+    async run(request) {
       phase += 1;
       if (phase === 1) {
         return {
-          toolCalls: [
-            { name: "project_create", args: { name: "guessing" } },
-            {
-              name: "create_box",
-              args: { name: "Anchor", length_mm: 1, width_mm: 1, height_mm: 1 },
-            },
-            { name: "create_assembly", args: { assembly_id: "known-assembly" } },
-          ],
+          toolCalls: [{ name: "project_create", args: { name: "guessing" } }],
         };
       }
       if (phase === 2) {
+        const { payload } = parseLastToolResults(request);
+        projectId = resultFor(payload, "project_create").data?.project_id;
+        assert(projectId, JSON.stringify(payload));
+        return {
+          toolCalls: [
+            {
+              name: "create_box",
+              args: {
+                project_id: projectId,
+                name: "Anchor",
+                length_mm: 1,
+                width_mm: 1,
+                height_mm: 1,
+              },
+            },
+            {
+              name: "create_assembly",
+              args: { project_id: projectId, assembly_id: "known-assembly" },
+            },
+          ],
+        };
+      }
+      if (phase === 3) {
         return {
           toolCalls: [
             {
               name: "define_component",
-              args: { assembly_id: "known-assembly", include: { body_ids: ["body_1"] } },
+              args: {
+                project_id: projectId,
+                assembly_id: "known-assembly",
+                include: { body_ids: ["body_1"] },
+              },
             },
             {
               name: "create_instance",
               args: {
+                project_id: projectId,
                 assembly_id: "known-assembly",
                 component_id: "component_1",
                 instance_id: "a1",
               },
             },
-            { name: "fix_instance", args: { assembly_id: "known-assembly", instance_id: "a1" } },
+            {
+              name: "fix_instance",
+              args: {
+                project_id: projectId,
+                assembly_id: "known-assembly",
+                instance_id: "a1",
+              },
+            },
             {
               name: "mate_faces",
               args: {
+                project_id: projectId,
                 assembly_id: "known-assembly",
                 a_instance: "a1",
                 a_face: "top_face",
@@ -415,9 +536,18 @@ await test("I5-guessed-assembly-identities-receive-no-success-credit", async () 
                 b_face: "bottom_face",
               },
             },
-            { name: "inspect_assembly", args: { assembly_id: "assembly_1" } },
-            { name: "check_interference", args: { assembly_id: "assembly_1" } },
-            { name: "export_assembly", args: { assembly_id: "assembly_1", format: "step" } },
+            {
+              name: "inspect_assembly",
+              args: { project_id: projectId, assembly_id: "assembly_1" },
+            },
+            {
+              name: "check_interference",
+              args: { project_id: projectId, assembly_id: "assembly_1" },
+            },
+            {
+              name: "export_assembly",
+              args: { project_id: projectId, assembly_id: "assembly_1", format: "step" },
+            },
           ],
         };
       }
@@ -445,20 +575,23 @@ await test("I5-guessed-assembly-identities-receive-no-success-credit", async () 
 });
 
 await test("I6-inspection-mirrors-public-identity-boundaries", async () => {
-  const seeded = await executeSequence([
-    ["project_create", { name: "inspection" }],
+  const seeded = await executeProjectSequence("inspection", [
     ["create_box", { name: "Anchor", length_mm: 1, width_mm: 2, height_mm: 3 }],
   ]);
   const box = seeded.output.at(-1).result.data;
-  const inspected = await executePublicTool("inspect_document", {}, { state: seeded.state });
+  const inspected = await executePublicTool(
+    "inspect_document",
+    { project_id: seeded.projectId },
+    { state: seeded.state },
+  );
   const projectInspected = await executePublicTool(
     "project_inspect",
-    { project_id: "inspection" },
+    { project_id: seeded.projectId },
     { state: inspected.state },
   );
   const opened = await executePublicTool(
     "project_open",
-    { project_id: "inspection" },
+    { project_id: seeded.projectId },
     { state: projectInspected.state },
   );
   assert(inspected.data.bodies[0].id === box.body_id, JSON.stringify(inspected.data));
@@ -503,8 +636,7 @@ await test("I8-evaluation-semantics-advanced-to-v4", () => {
 });
 
 await test("I9-imported-components-remain-instantiable-but-not-parametric", async () => {
-  const seeded = await executeSequence([
-    ["project_create", { name: "imported-component" }],
+  const seeded = await executeProjectSequence("imported-component", [
     ["create_assembly", { assembly_id: "imported-assembly" }],
     [
       "define_component",
@@ -519,6 +651,7 @@ await test("I9-imported-components-remain-instantiable-but-not-parametric", asyn
   const instance = await executePublicTool(
     "create_instance",
     {
+      project_id: seeded.projectId,
       assembly_id: "imported-assembly",
       component_id: "imported-definition",
       instance_id: "imported-instance",
@@ -530,6 +663,7 @@ await test("I9-imported-components-remain-instantiable-but-not-parametric", asyn
   const parameter = await executePublicTool(
     "set_definition_parameter",
     {
+      project_id: seeded.projectId,
       assembly_id: "imported-assembly",
       component_id: "imported-definition",
       name: "length",
@@ -540,6 +674,240 @@ await test("I9-imported-components-remain-instantiable-but-not-parametric", asyn
   assert(parameter.ok === false, JSON.stringify(parameter));
   assert(parameter.code === "UNKNOWN_PARAMETER", JSON.stringify(parameter));
   assert(!JSON.stringify(instance).includes("source.step"), JSON.stringify(instance));
+});
+
+await test("I10-external-catalog-requires-project-for-every-scoped-tool", async () => {
+  const catalog = await loadPublicCatalog();
+  let suppliedTools;
+  await runAgentLoop({
+    scenarioId: "assembly",
+    condition: "no-skill",
+    provider: {
+      id: "mock",
+      async run(request) {
+        suppliedTools = request.tools;
+        return { output: "Catalog inspected; no operation executed.", toolCalls: [] };
+      },
+    },
+    config: config(),
+  });
+  const violations = suppliedTools
+    .filter((tool) => catalog.getCatalogEntry(tool.name)?.needsProject)
+    .filter((tool) => !tool.parameters?.required?.includes("project_id"))
+    .map((tool) => tool.name);
+  assert(violations.length === 0, `missing external project requirement: ${violations.join(",")}`);
+  assert(suppliedTools.length === catalog.entries.length, `provider tools=${suppliedTools.length}`);
+  const createBox = suppliedTools.find((tool) => tool.name === "create_box");
+  assert(createBox.parameters.required[0] === "project_id", JSON.stringify(createBox));
+  const projectCreate = suppliedTools.find((tool) => tool.name === "project_create");
+  assert(!projectCreate.parameters.required.includes("project_id"), JSON.stringify(projectCreate));
+});
+
+await test("I11-missing-and-wrong-projects-fail-before-positive-state", async () => {
+  const missing = await executePublicTool(
+    "create_box",
+    { name: "Missing", length_mm: 1, width_mm: 1, height_mm: 1 },
+    { state: {} },
+  );
+  assert(missing.ok === false && missing.code === "MALFORMED_REQUEST", JSON.stringify(missing));
+  assert(
+    Object.values(positiveState(missing.state)).every((value) => value === false),
+    JSON.stringify(missing),
+  );
+
+  const projectOnly = await executePublicTool(
+    "project_create",
+    { name: "project-only" },
+    { state: {} },
+  );
+  const wrongBox = await executePublicTool(
+    "create_box",
+    {
+      project_id: "fabricated-project",
+      name: "Wrong",
+      length_mm: 1,
+      width_mm: 1,
+      height_mm: 1,
+    },
+    { state: projectOnly.state },
+  );
+  assert(wrongBox.ok === false && wrongBox.code === "PROJECT_NOT_FOUND", JSON.stringify(wrongBox));
+  assert(
+    JSON.stringify(positiveState(wrongBox.state)) ===
+      JSON.stringify(positiveState(projectOnly.state)),
+    JSON.stringify(wrongBox),
+  );
+  const wrongAssembly = await executePublicTool(
+    "create_assembly",
+    { project_id: "fabricated-project" },
+    { state: projectOnly.state },
+  );
+  assert(
+    wrongAssembly.ok === false && wrongAssembly.code === "PROJECT_NOT_FOUND",
+    JSON.stringify(wrongAssembly),
+  );
+  assert(
+    wrongAssembly.state[Symbol.for("battenmark.eval.object-registry")].assemblies.length === 0,
+  );
+
+  const seeded = await executeProjectSequence("project-guard", [
+    ["create_box", { name: "Real", length_mm: 1, width_mm: 1, height_mm: 1 }],
+    ["create_assembly", { assembly_id: "real-assembly" }],
+  ]);
+  const attempts = [
+    [
+      "define_component",
+      { assembly_id: "real-assembly", include: { body_ids: ["bdy_1"] } },
+      "components_defined",
+    ],
+    ["inspect_document", {}, "inspect_assembly_called"],
+    ["inspect_assembly", { assembly_id: "real-assembly" }, "inspect_assembly_called"],
+    ["export_assembly", { assembly_id: "real-assembly", format: "step" }, "artifact_exported"],
+  ];
+  for (const [name, args, forbiddenFlag] of attempts) {
+    const before = positiveState(seeded.state);
+    const result = await executePublicTool(
+      name,
+      { project_id: "fabricated-project", ...args },
+      { state: seeded.state },
+    );
+    assert(result.ok === false && result.code === "PROJECT_NOT_FOUND", JSON.stringify(result));
+    assert(
+      JSON.stringify(positiveState(result.state)) === JSON.stringify(before),
+      `${name} changed positive state including ${forbiddenFlag}`,
+    );
+  }
+});
+
+await test("I12-set-instance-transform-mutates-and-inspection-observes-it", async () => {
+  const seeded = await executeProjectSequence("transform", [
+    ["create_box", { name: "Part", length_mm: 1, width_mm: 1, height_mm: 1 }],
+    ["create_assembly", { assembly_id: "transform-assembly" }],
+    [
+      "define_component",
+      {
+        assembly_id: "transform-assembly",
+        component_id: "transform-component",
+        include: { body_ids: ["bdy_1"] },
+      },
+    ],
+    [
+      "create_instance",
+      {
+        assembly_id: "transform-assembly",
+        component_id: "transform-component",
+        instance_id: "moving",
+        position: { x: 1, y: 2, z: 3 },
+      },
+    ],
+  ]);
+  const updated = await executePublicTool(
+    "set_instance_transform",
+    {
+      project_id: seeded.projectId,
+      assembly_id: "transform-assembly",
+      instance_id: "moving",
+      position: { x: 10, z: 30 },
+      rotation_euler_xyz_deg: { x: 0, y: 0, z: 90 },
+    },
+    { state: seeded.state },
+  );
+  assert(updated.ok, JSON.stringify(updated));
+  assert(
+    JSON.stringify(updated.data.transform.translation) === JSON.stringify({ x: 10, y: 2, z: 30 }),
+    JSON.stringify(updated),
+  );
+  const expectedHalf = Math.SQRT1_2;
+  assert(
+    Math.abs(updated.data.transform.rotation.z - expectedHalf) < 1e-12,
+    JSON.stringify(updated),
+  );
+  assert(
+    Math.abs(updated.data.transform.rotation.w - expectedHalf) < 1e-12,
+    JSON.stringify(updated),
+  );
+
+  const inspected = await executePublicTool(
+    "inspect_assembly",
+    { project_id: seeded.projectId, assembly_id: "transform-assembly" },
+    { state: updated.state },
+  );
+  const observed = inspected.data.instances.find((instance) => instance.id === "moving").transform;
+  assert(
+    JSON.stringify(observed) === JSON.stringify(updated.data.transform),
+    JSON.stringify(inspected),
+  );
+
+  const unknown = await executePublicTool(
+    "set_instance_transform",
+    {
+      project_id: seeded.projectId,
+      assembly_id: "transform-assembly",
+      instance_id: "missing",
+      position: { x: 999 },
+    },
+    { state: inspected.state },
+  );
+  assert(unknown.ok === false && unknown.code === "INSTANCE_NOT_FOUND", JSON.stringify(unknown));
+  const reinspected = await executePublicTool(
+    "inspect_assembly",
+    { project_id: seeded.projectId, assembly_id: "transform-assembly" },
+    { state: unknown.state },
+  );
+  const afterFailure = reinspected.data.instances.find(
+    (instance) => instance.id === "moving",
+  ).transform;
+  assert(JSON.stringify(afterFailure) === JSON.stringify(observed), JSON.stringify(reinspected));
+});
+
+await test("I13-native-definition-parameters-validate-and-retain-identity", async () => {
+  const seeded = await executeProjectSequence("parameters", [
+    ["define_parameter", { name: "length", value: 60 }],
+    ["create_box", { name: "Part", length_mm: "length", width_mm: 1, height_mm: 1 }],
+    ["create_assembly", { assembly_id: "parameter-assembly" }],
+    [
+      "define_component",
+      {
+        assembly_id: "parameter-assembly",
+        component_id: "stable-component",
+        include: { body_ids: ["bdy_1"] },
+      },
+    ],
+  ]);
+  const changed = await executePublicTool(
+    "set_definition_parameter",
+    {
+      project_id: seeded.projectId,
+      assembly_id: "parameter-assembly",
+      component_id: "stable-component",
+      name: "length",
+      value: 80,
+    },
+    { state: seeded.state },
+  );
+  assert(changed.ok && changed.data?.value === 80, JSON.stringify(changed));
+  assert(changed.data?.component_id === "stable-component", JSON.stringify(changed));
+  const registry = changed.state[Symbol.for("battenmark.eval.object-registry")];
+  const component = registry.assemblies[0].components[0];
+  assert(component.component_id === "stable-component", JSON.stringify(component));
+  assert(component.parameters.find((parameter) => parameter.name === "length")?.value === 80);
+
+  const unknown = await executePublicTool(
+    "set_definition_parameter",
+    {
+      project_id: seeded.projectId,
+      assembly_id: "parameter-assembly",
+      component_id: "stable-component",
+      name: "does_not_exist",
+      value: 80,
+    },
+    { state: changed.state },
+  );
+  assert(unknown.ok === false && unknown.code === "UNKNOWN_PARAMETER", JSON.stringify(unknown));
+  assert(
+    unknown.state[Symbol.for("battenmark.eval.object-registry")].assemblies[0].components[0]
+      .component_id === "stable-component",
+  );
 });
 
 const failed = results.filter((result) => !result.passed).length;

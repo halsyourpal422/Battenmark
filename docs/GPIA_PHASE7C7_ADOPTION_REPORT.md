@@ -94,3 +94,24 @@ The evaluation executor now keeps a deterministic registry behind a non-serializ
 Reference-dependent assembly operations return structured public-style `PROJECT_NOT_FOUND`, `UNKNOWN_BODY`, `EMPTY_SKETCH`, `ASSEMBLY_NOT_FOUND`, `COMPONENT_NOT_FOUND`, `INSTANCE_NOT_FOUND`, or `CONSTRAINT_NOT_FOUND` failures as applicable. Failed references do not set scorer state. Assembly constraint and export checks now require successful calls, closing the remaining guessed-ID credit path without changing weights or scenarios.
 
 The semantics identifier is `battenmark.phase7c.identity-integrity.v4`; v3 checkpoints fail closed before provider execution. Deterministic tests reproduce the historical missing-identity decision point and show that the corrected results allow the chain to continue without repeated inspection. No generic no-progress policy was added because identity fidelity removed the demonstrated cause.
+
+## Independent Review Remediation
+
+Independent review accepted the core v4 identity repair and found three remaining public-contract fidelity gaps before any paid evidence is created:
+
+1. The evaluator advertises a studio-style tool catalog to an external agent, omitting the canonical `project_id` requirement on `needsProject` operations, and the executor lacks a central project guard.
+2. `set_instance_transform` validates identity but reports success without applying the requested transform.
+3. Native component definitions do not snapshot document parameters, so arbitrary parameter names can report false success.
+
+The remediation keeps production code authoritative: derive the external catalog from `toOpenAiTool(entry, true)`, enforce project context centrally from catalog metadata before mutation, reuse canonical Euler-to-quaternion math, and retain bounded public parameter snapshots. Evaluation semantics remain v4 because no paid v4 run exists; the changed commit and tool-catalog hash provide checkpoint separation. Verification must cover denied project references, complete returned-identity chaining, transform/parameter state visibility, prior-catalog checkpoint rejection with zero provider calls, and all existing credential-free gates.
+
+### Remediation Outcome
+
+- The provider-facing catalog now derives each definition through `toOpenAiTool(entry, true)`. Every live `needsProject` tool therefore requires `project_id`; project-free operations retain their canonical schemas.
+- A single catalog-driven executor guard rejects missing project context with `MALFORMED_REQUEST` and mismatched project/slug references with `PROJECT_NOT_FOUND` before registry or scorer state changes.
+- Deterministic agent fixtures capture `project_id` from `project_create` results and carry it through the complete project → body → assembly → component → instance → constraint → artifact chain.
+- `set_instance_transform` now preserves unspecified translation axes, uses canonical Euler XYZ-to-quaternion conversion, persists the new transform, and exposes it through later assembly inspection.
+- Document parameters are stored as bounded public records. Native definitions snapshot them, valid definition edits update existing parameters while preserving component identity, and unknown/imported parameter edits fail with `UNKNOWN_PARAMETER`.
+- The reviewed-head catalog hash `4fbdd518c661fb7a993d4ed1716d7f933e2b1109e12f084e54bbfdd4fd9dfc74` changes to `047c67ef9374e6406c3072bf172b122d52e8829254095626e9f5596d6b270c84`. A v4 checkpoint frozen to the reviewed hash fails closed before provider execution.
+
+No production, skill, scenario, scorer-weight, turn-budget, hosted-provider, or paid-execution behavior changed.
