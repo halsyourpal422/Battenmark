@@ -314,6 +314,57 @@ await test("checkpoint-frozen-config-mismatch-fails-closed", () =>
     }
   }));
 
+await test("checkpoint-phase7c5-v2-semantics-cannot-resume-v3", () =>
+  tempCheckpoint(async ({ path }) => {
+    const oldExperiment = experiment({
+      evaluation_semantics: "battenmark.phase7c.backend-recovery.v2",
+    });
+    const oldMatrix = checkpointApi.buildMatrix(oldExperiment);
+    let seedCalls = 0;
+    try {
+      await checkpointApi.runCheckpointedMatrix({
+        experiment: oldExperiment,
+        matrix: oldMatrix,
+        checkpointPath: path,
+        resume: false,
+        executeRow: async (entry) => {
+          seedCalls += 1;
+          if (seedCalls === 2) throw new Error("stop after old row");
+          return row(entry, {
+            evaluation_semantics: "battenmark.phase7c.backend-recovery.v2",
+          });
+        },
+      });
+    } catch (error) {
+      if (error.message !== "stop after old row") throw error;
+    }
+    assert(
+      (await checkpointApi.readCheckpoint(path)).completed_rows.length === 1,
+      "old row missing",
+    );
+
+    const currentExperiment = experiment({
+      ...oldExperiment,
+      evaluation_semantics: "battenmark.phase7c.agent-protocol.v3",
+    });
+    let providerCalls = 0;
+    try {
+      await checkpointApi.runCheckpointedMatrix({
+        experiment: currentExperiment,
+        matrix: checkpointApi.buildMatrix(currentExperiment),
+        checkpointPath: path,
+        resume: true,
+        executeRow: async () => {
+          providerCalls += 1;
+        },
+      });
+      throw new Error("expected old protocol checkpoint rejection");
+    } catch (error) {
+      assert(error.code === "CHECKPOINT_EXPERIMENT_MISMATCH", `code=${error.code}`);
+      assert(providerCalls === 0, `provider called ${providerCalls} times`);
+    }
+  }));
+
 await test("checkpoint-corrupt-file-fails-closed", () =>
   tempCheckpoint(async ({ path }) => {
     requireApi("runCheckpointedMatrix", "buildMatrix");

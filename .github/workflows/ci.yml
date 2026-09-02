@@ -4,7 +4,6 @@ on:
   push:
     branches: [main]
   pull_request:
-    branches: [main]
 
 concurrency:
   group: ci-${{ github.ref }}
@@ -14,6 +13,46 @@ permissions:
   contents: read
 
 jobs:
+  evaluation-integrity-exact-head:
+    name: evaluation integrity (exact PR head)
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      EXPECTED_HEAD_SHA: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ env.EXPECTED_HEAD_SHA }}
+      - name: Assert exact checked-out head
+        run: |
+          set -e
+          ACTUAL_HEAD_SHA="$(git rev-parse HEAD)"
+          echo "Expected PR head SHA: $EXPECTED_HEAD_SHA"
+          echo "Checked out exact-head SHA: $ACTUAL_HEAD_SHA"
+          test "$ACTUAL_HEAD_SHA" = "$EXPECTED_HEAD_SHA"
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - name: Run credential-free evaluation integrity gates
+        run: |
+          set -e
+          echo "== eval:agent:protocol =="
+          npm run --silent eval:agent:protocol
+          echo "== eval:agent:integrity =="
+          npm run --silent eval:agent:integrity
+          echo "== eval:checkpoint:test =="
+          npm run --silent eval:checkpoint:test
+          echo "== eval:trace:test =="
+          npm run --silent eval:trace:test
+          echo "== eval:backend-recovery:test =="
+          npm run --silent eval:backend-recovery:test
+          echo "== eval:provider:redaction =="
+          npm run --silent eval:provider:redaction
+          echo "== eval:phase7c5b:skill-contract =="
+          npm run --silent eval:phase7c5b:skill-contract
+
   typecheck:
     name: typecheck
     runs-on: ubuntu-latest
