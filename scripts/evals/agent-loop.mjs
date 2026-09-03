@@ -153,6 +153,8 @@ export async function runAgentLoop({
   await persistPartial();
 
   const fixture = createEvaluationFixture(scenario);
+  const initialized = fixture.initialize(final_state);
+  if (initialized.state) Object.assign(final_state, initialized.state);
   const injected = await fixture.inject();
   if (injected) {
     toolOrder += 1;
@@ -324,6 +326,7 @@ export async function runAgentLoop({
         code: executed.code || undefined,
         error: executed.error || undefined,
         details: executed.details || undefined,
+        data: executed.data === undefined ? undefined : structuredClone(executed.data),
         order: toolOrder,
         source: "model",
       });

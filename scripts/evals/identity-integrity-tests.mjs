@@ -18,6 +18,9 @@ const POSITIVE_STATE_KEYS = [
   "inspect_assembly_called",
   "interference_checked",
   "artifact_exported",
+  "feature_applied",
+  "validated",
+  "preview_rendered",
 ];
 
 function assert(condition, message) {
@@ -908,6 +911,249 @@ await test("I13-native-definition-parameters-validate-and-retain-identity", asyn
     unknown.state[Symbol.for("battenmark.eval.object-registry")].assemblies[0].components[0]
       .component_id === "stable-component",
   );
+});
+
+await test("I14-feature-and-boolean-references-fail-before-state-mutation", async () => {
+  const seeded = await executeProjectSequence("feature-references", [
+    ["create_box", { name: "Outer", length_mm: 77, width_mm: 57, height_mm: 15.5 }],
+    ["create_box", { name: "Cavity", length_mm: 73, width_mm: 53, height_mm: 13.5 }],
+  ]);
+  const [outer, cavity] = seeded.output.slice(1).map((entry) => entry.result.data);
+  const sketch = await executePublicTool(
+    "create_sketch",
+    { project_id: seeded.projectId, body_id: outer.body_id, name: "USB Opening", plane: "YZ" },
+    { state: seeded.state },
+  );
+  assert(sketch.ok && sketch.data?.id, JSON.stringify(sketch));
+  const beforeRegistry = sketch.state[Symbol.for("battenmark.eval.object-registry")];
+  const beforeFeatures = beforeRegistry.features.length;
+  const attempts = [
+    ["create_sketch", { body_id: "missing-body" }, "UNKNOWN_BODY"],
+    [
+      "add_rectangle",
+      { sketch_id: "missing-sketch", x_mm: 0, y_mm: 0, width_mm: 12, height_mm: 6 },
+      "UNKNOWN_FEATURE",
+    ],
+    [
+      "add_rectangle",
+      { sketch_id: outer.id, x_mm: 0, y_mm: 0, width_mm: 12, height_mm: 6 },
+      "INVALID_REFERENCE",
+    ],
+    ["pocket", { sketch_id: "sketch_1", depth_mm: 2 }, "UNKNOWN_FEATURE"],
+    ["pocket", { sketch_id: sketch.data.id, depth_mm: 2 }, "EMPTY_SKETCH"],
+    [
+      "boolean_cut",
+      { target_body_id: "missing-target", tool_body_id: cavity.body_id },
+      "UNKNOWN_BODY",
+    ],
+    [
+      "boolean_cut",
+      { target_body_id: outer.body_id, tool_body_id: "missing-tool" },
+      "UNKNOWN_BODY",
+    ],
+    [
+      "boolean",
+      { target_body_id: outer.body_id, tool_body_id: outer.body_id, operation: "subtract" },
+      "INVALID_REFERENCE",
+    ],
+  ];
+  for (const [name, args, code] of attempts) {
+    const result = await executePublicTool(
+      name,
+      { project_id: seeded.projectId, ...args },
+      { state: sketch.state },
+    );
+    assert(result.ok === false && result.code === code, `${name}: ${JSON.stringify(result)}`);
+    const registry = result.state[Symbol.for("battenmark.eval.object-registry")];
+    assert(registry.features.length === beforeFeatures, `${name} mutated feature state`);
+    assert(result.state.feature_applied !== true, `${name} set feature_applied`);
+    assert(result.state.artifact_exported !== true, `${name} set artifact_exported`);
+  }
+});
+
+await test("I15-full-enclosure-chain-uses-only-returned-identities", async () => {
+  let phase = 0;
+  let projectId;
+  let outerBodyId;
+  let cavityBodyId;
+  let sketchId;
+  const provider = {
+    id: "mock",
+    async run(request) {
+      phase += 1;
+      if (phase === 1)
+        return { toolCalls: [{ name: "project_create", args: { name: "eval-enclosure" } }] };
+      const { payload } = parseLastToolResults(request);
+      if (phase === 2) {
+        projectId = resultFor(payload, "project_create").data?.project_id;
+        assert(projectId, JSON.stringify(payload));
+        return {
+          toolCalls: [
+            ["pcb_length", 70],
+            ["pcb_width", 50],
+            ["pcb_height", 12],
+            ["clearance", 1.5],
+            ["wall", 2],
+          ].map(([name, value]) => ({
+            name: "define_parameter",
+            args: { project_id: projectId, name, value },
+          })),
+        };
+      }
+      if (phase === 3) {
+        assert(
+          payload.results.every((result) => result.ok),
+          JSON.stringify(payload),
+        );
+        return {
+          toolCalls: [
+            {
+              name: "create_box",
+              args: {
+                project_id: projectId,
+                name: "Outer Shell",
+                length_mm: 77,
+                width_mm: 57,
+                height_mm: 15.5,
+              },
+            },
+            {
+              name: "create_box",
+              args: {
+                project_id: projectId,
+                name: "Main Cavity",
+                length_mm: 73,
+                width_mm: 53,
+                height_mm: 13.5,
+                origin: { x: 2, y: 2, z: 2 },
+              },
+            },
+          ],
+        };
+      }
+      if (phase === 4) {
+        [outerBodyId, cavityBodyId] = payload.results.map((result) => result.data?.body_id);
+        assert(
+          outerBodyId && cavityBodyId && outerBodyId !== cavityBodyId,
+          JSON.stringify(payload),
+        );
+        return {
+          toolCalls: [
+            {
+              name: "boolean_cut",
+              args: {
+                project_id: projectId,
+                target_body_id: outerBodyId,
+                tool_body_id: cavityBodyId,
+                name: "Main Cavity Cut",
+              },
+            },
+          ],
+        };
+      }
+      if (phase === 5) {
+        const cut = resultFor(payload, "boolean_cut");
+        assert(
+          cut.data?.target_body_id === outerBodyId && cut.data?.tool_body_id === cavityBodyId,
+          JSON.stringify(cut),
+        );
+        return {
+          toolCalls: [
+            {
+              name: "create_sketch",
+              args: {
+                project_id: projectId,
+                body_id: outerBodyId,
+                name: "USB Opening",
+                plane: "YZ",
+              },
+            },
+          ],
+        };
+      }
+      if (phase === 6) {
+        sketchId = resultFor(payload, "create_sketch").data?.id;
+        assert(sketchId, JSON.stringify(payload));
+        return {
+          toolCalls: [
+            {
+              name: "add_rectangle",
+              args: {
+                project_id: projectId,
+                sketch_id: sketchId,
+                x_mm: 0,
+                y_mm: 3,
+                width_mm: 12,
+                height_mm: 6,
+              },
+            },
+          ],
+        };
+      }
+      if (phase === 7) {
+        const rectangle = resultFor(payload, "add_rectangle");
+        assert(
+          rectangle.data?.sketch_id === sketchId && rectangle.data?.profile_count === 1,
+          JSON.stringify(rectangle),
+        );
+        return {
+          toolCalls: [
+            {
+              name: "pocket",
+              args: {
+                project_id: projectId,
+                sketch_id: sketchId,
+                depth_mm: 2,
+                name: "USB Opening Pocket",
+              },
+            },
+          ],
+        };
+      }
+      if (phase === 8) {
+        const pocket = resultFor(payload, "pocket");
+        assert(
+          pocket.data?.sketch_id === sketchId && pocket.data?.body_id === outerBodyId,
+          JSON.stringify(pocket),
+        );
+        return {
+          toolCalls: [
+            { name: "validate", args: { project_id: projectId } },
+            { name: "render_preview", args: { project_id: projectId } },
+            { name: "export_step", args: { project_id: projectId, body_id: outerBodyId } },
+          ],
+        };
+      }
+      if (phase === 9) {
+        assert(
+          payload.results.every((result) => result.ok),
+          JSON.stringify(payload),
+        );
+        return { output: "Enclosure completed using returned public identities.", toolCalls: [] };
+      }
+      throw new Error(`unexpected enclosure phase ${phase}`);
+    },
+  };
+  const row = await runAgentLoop({
+    scenarioId: "enclosure",
+    condition: "with-skill",
+    provider,
+    config: config(),
+  });
+  assert(row.termination === "model_stop", `termination=${row.termination}`);
+  for (const check of [
+    "project_created",
+    "measurements_as_parameters",
+    "outer_shell_created",
+    "cavity_present",
+    "opening_present",
+    "validated",
+    "preview_rendered",
+    "artifact_exported",
+    "public_ops_only",
+  ])
+    assert(row.checks[check] === true, `${check}=${row.checks[check]}`);
+  assert(row.hard_failures.length === 0, JSON.stringify(row.hard_failures));
 });
 
 const failed = results.filter((result) => !result.passed).length;

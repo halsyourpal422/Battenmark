@@ -49,9 +49,43 @@ export function privilegedRejected(name, catalog) {
 export function createEvaluationFixture(scenario) {
   const fixture = scenario?.fixture?.structured_error;
   let injectionCount = 0;
+  const session = fixture
+    ? {
+        project_id: "diagnostic-project",
+        document_id: "diagnostic-document",
+        body_id: String(fixture.args?.body_id || "diagnostic_fixture"),
+      }
+    : null;
   return {
     get injectionCount() {
       return injectionCount;
+    },
+    initialize(state = {}) {
+      if (!session) return { state, public_context: null };
+      const next = nextState(state);
+      const registry = registryOf(next);
+      next.project_id = session.project_id;
+      registry.project = {
+        project_id: session.project_id,
+        name: "Backend diagnostics fixture",
+        slug: session.project_id,
+      };
+      registry.document = {
+        document_id: session.document_id,
+        name: "Backend diagnostics fixture",
+      };
+      registry.parameters = [];
+      registry.bodies = [
+        {
+          body_id: session.body_id,
+          name: session.body_id,
+          fixture_geometry: "diagnostic-box",
+        },
+      ];
+      registry.features = [];
+      registry.assemblies = [];
+      registry.artifacts = [];
+      return { state: next, public_context: structuredClone(session) };
     },
     async inject() {
       if (!fixture || injectionCount > 0) return null;
@@ -60,6 +94,9 @@ export function createEvaluationFixture(scenario) {
         reference: fixture.stale_reference,
         entity: fixture.entity,
         suggestion: fixture.suggestion,
+        project_id: session.project_id,
+        document_id: session.document_id,
+        body_id: session.body_id,
       };
       const result = {
         ok: false,
@@ -78,7 +115,7 @@ export function createEvaluationFixture(scenario) {
       return {
         call_id: `fixture:${scenario.id}:structured-error:1`,
         name: fixture.operation,
-        args: structuredClone(fixture.args),
+        args: { project_id: session.project_id, ...structuredClone(fixture.args) },
         result,
       };
     },
@@ -133,6 +170,53 @@ function nextPublicName(base, items) {
 
 function findBody(registry, identity) {
   return registry.bodies.find((body) => body.body_id === identity || body.name === identity);
+}
+
+function findFeature(registry, identity) {
+  return registry.features.find(
+    (feature) => feature.feature_id === identity || feature.name === identity,
+  );
+}
+
+function resolvedDimension(registry, value, label, { positive = false } = {}) {
+  let resolved;
+  try {
+    resolved = resolveEvaluationDimension(registry, value);
+  } catch (error) {
+    return { error: `Invalid ${label}: ${String(error.message || error)}` };
+  }
+  if (!Number.isFinite(resolved) || (positive && resolved <= 0)) {
+    return { error: `${label} must be ${positive ? "positive and " : ""}finite.` };
+  }
+  return { value: resolved };
+}
+
+function requireFeature(name, state, identity) {
+  const feature = findFeature(registryOf(state), identity);
+  if (feature) return { feature };
+  return {
+    error: referenceFailure(
+      name,
+      state,
+      "UNKNOWN_FEATURE",
+      `Feature '${identity}' was not found.`,
+      {
+        feature: identity,
+      },
+    ),
+  };
+}
+
+function requireSketch(name, state, identity) {
+  const found = requireFeature(name, state, identity);
+  if (found.error) return found;
+  if (found.feature.kind === "sketch") return found;
+  return {
+    error: referenceFailure(name, state, "INVALID_REFERENCE", `'${identity}' is not a sketch.`, {
+      feature: found.feature.feature_id,
+      kind: found.feature.kind,
+    }),
+  };
 }
 
 function findAssembly(registry, identity) {
@@ -484,6 +568,210 @@ export async function executePublicTool(name, args = {}, { catalog, state } = {}
       summary,
     });
   }
+  if (name === "create_sketch") {
+    const body = findBody(registry, String(args.body_id));
+    if (!body) {
+      return referenceFailure(name, next, "UNKNOWN_BODY", `Body '${args.body_id}' was not found.`, {
+        body: String(args.body_id),
+      });
+    }
+    const featureId = nextIdentity("feat", registry.features, "feature_id");
+    const featureName = nextPublicName(String(args.name || "Sketch"), registry.features);
+    const plane = String(args.plane || "XY");
+    registry.features.push({
+      feature_id: featureId,
+      name: featureName,
+      kind: "sketch",
+      body_id: body.body_id,
+      plane,
+      origin: structuredClone(args.origin || { x: 0, y: 0, z: 0 }),
+      profiles: [],
+      summary: `sketch on ${plane}`,
+    });
+    return successful(name, next, { id: featureId, name: featureName, plane });
+  }
+  if (name === "add_rectangle" || name === "add_circle") {
+    const found = requireSketch(name, next, String(args.sketch_id));
+    if (found.error) return found.error;
+    const sketch = found.feature;
+    const fields =
+      name === "add_rectangle"
+        ? [
+            ["x_mm", false],
+            ["y_mm", false],
+            ["width_mm", true],
+            ["height_mm", true],
+          ]
+        : [
+            ["cx_mm", false],
+            ["cy_mm", false],
+            ["radius_mm", true],
+          ];
+    const values = {};
+    for (const [field, positive] of fields) {
+      const resolved = resolvedDimension(registry, args[field], field, { positive });
+      if (resolved.error) return referenceFailure(name, next, "INVALID_DIMENSION", resolved.error);
+      values[field] = resolved.value;
+    }
+    const profileId = nextIdentity("prf", sketch.profiles, "profile_id");
+    sketch.profiles.push({
+      profile_id: profileId,
+      kind: name === "add_rectangle" ? "rectangle" : "circle",
+      ...values,
+    });
+    return successful(name, next, {
+      sketch_id: sketch.feature_id,
+      profile_count: sketch.profiles.length,
+    });
+  }
+  if (name === "pocket" || name === "pad") {
+    const found = requireSketch(name, next, String(args.sketch_id));
+    if (found.error) return found.error;
+    const sketch = found.feature;
+    if (!sketch.profiles.length) {
+      return referenceFailure(
+        name,
+        next,
+        "EMPTY_SKETCH",
+        `Sketch '${sketch.feature_id}' has no profiles to ${name}.`,
+      );
+    }
+    const depth = resolvedDimension(registry, args.depth_mm, "depth_mm", { positive: true });
+    if (depth.error) return referenceFailure(name, next, "INVALID_DIMENSION", depth.error);
+    const featureId = nextIdentity("feat", registry.features, "feature_id");
+    const featureName = nextPublicName(
+      String(args.name || (name === "pocket" ? "Pocket" : "Pad")),
+      registry.features,
+    );
+    const summary = `${name} ${depth.value} mm`;
+    registry.features.push({
+      feature_id: featureId,
+      name: featureName,
+      kind: name,
+      body_id: sketch.body_id,
+      sketch_id: sketch.feature_id,
+      depth_mm: depth.value,
+      summary,
+    });
+    next.feature_applied = true;
+    return successful(name, next, {
+      id: featureId,
+      name: featureName,
+      body_id: sketch.body_id,
+      sketch_id: sketch.feature_id,
+      summary,
+    });
+  }
+  if (
+    name === "boolean" ||
+    name === "boolean_cut" ||
+    name === "boolean_union" ||
+    name === "boolean_intersect"
+  ) {
+    const target = findBody(registry, String(args.target_body_id));
+    if (!target) {
+      return referenceFailure(
+        name,
+        next,
+        "UNKNOWN_BODY",
+        `Body '${args.target_body_id}' was not found.`,
+        { body: String(args.target_body_id), role: "target" },
+      );
+    }
+    const tool = findBody(registry, String(args.tool_body_id));
+    if (!tool) {
+      return referenceFailure(
+        name,
+        next,
+        "UNKNOWN_BODY",
+        `Body '${args.tool_body_id}' was not found.`,
+        { body: String(args.tool_body_id), role: "tool" },
+      );
+    }
+    if (target.body_id === tool.body_id) {
+      return referenceFailure(
+        name,
+        next,
+        "INVALID_REFERENCE",
+        "Boolean target and tool must be different bodies.",
+      );
+    }
+    const operation =
+      name === "boolean_cut"
+        ? "subtract"
+        : name === "boolean_union"
+          ? "union"
+          : name === "boolean_intersect"
+            ? "intersect"
+            : String(args.operation);
+    const featureId = nextIdentity("feat", registry.features, "feature_id");
+    const featureName = nextPublicName(String(args.name || "Boolean"), registry.features);
+    const summary = `${operation} ${tool.body_id} from ${target.body_id}`;
+    registry.features.push({
+      feature_id: featureId,
+      name: featureName,
+      kind: "boolean",
+      body_id: target.body_id,
+      target_body_id: target.body_id,
+      tool_body_id: tool.body_id,
+      operation,
+      summary,
+    });
+    next.feature_applied = true;
+    return successful(name, next, {
+      id: featureId,
+      name: featureName,
+      body_id: target.body_id,
+      target_body_id: target.body_id,
+      tool_body_id: tool.body_id,
+      operation,
+      summary,
+    });
+  }
+  if (name === "query_geometry" || name === "inspect_faces") {
+    const body = findBody(registry, String(args.body_id));
+    if (!body) {
+      return referenceFailure(name, next, "UNKNOWN_BODY", `Body '${args.body_id}' was not found.`, {
+        body: String(args.body_id),
+      });
+    }
+    const selector = args.selector;
+    const staleReference =
+      selector && typeof selector === "object" && !Array.isArray(selector) ? selector.gref : null;
+    if (staleReference === "gref_missing") {
+      return referenceFailure(
+        name,
+        next,
+        "GEOMETRY_REFERENCE_LOST",
+        `Persistent geometry reference '${staleReference}' is no longer present.`,
+        { reference: staleReference, entity: name === "inspect_faces" ? "face" : args.entity },
+      );
+    }
+    const semanticSelector = typeof selector === "string" ? selector : "top_face";
+    if (semanticSelector !== "top_face") {
+      return referenceFailure(
+        name,
+        next,
+        "GEOMETRY_SELECTOR_NO_MATCH",
+        `Selector '${semanticSelector}' did not match fixture geometry.`,
+      );
+    }
+    const match = {
+      id: "face_top",
+      gref: "gref_top_face",
+      role: "top_face",
+      midpoint: { x: 0, y: 0, z: 10 },
+      normal: { x: 0, y: 0, z: 1 },
+    };
+    next.geometry_inspected = true;
+    return successful(name, next, {
+      body_id: body.body_id,
+      entity: "face",
+      selector: semanticSelector,
+      match_count: 1,
+      matches: [match],
+    });
+  }
   if (name === "create_assembly") {
     const assemblyId = String(
       args.assembly_id || nextIdentity("asm", registry.assemblies, "assembly_id"),
@@ -808,15 +1096,7 @@ export async function executePublicTool(name, args = {}, { catalog, state } = {}
       { artifact_id: artifactId },
     );
   }
-  if (
-    name === "create_hole" ||
-    name === "fillet" ||
-    name === "chamfer" ||
-    name === "boolean" ||
-    name === "boolean_cut" ||
-    name === "boolean_union" ||
-    name === "boolean_intersect"
-  )
+  if (name === "create_hole" || name === "fillet" || name === "chamfer")
     next.feature_applied = true;
   if (name === "validate") next.validated = true;
   if (name === "render_preview") next.preview_rendered = true;

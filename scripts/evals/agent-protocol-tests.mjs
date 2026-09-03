@@ -253,6 +253,7 @@ await test("P2-assembly-public-result-state-reaches-next-turn", async () => {
 await test("P3-successful-boolean-state-reaches-next-turn", async () => {
   let inspected = false;
   let projectId;
+  let bodyIds = [];
   const provider = capturingProvider(
     [
       { toolCalls: [{ name: "project_create", args: { name: "protocol-boolean" } }] },
@@ -261,11 +262,41 @@ await test("P3-successful-boolean-state-reaches-next-turn", async () => {
         return {
           toolCalls: [
             {
+              name: "create_box",
+              args: {
+                project_id: projectId,
+                name: "Outer",
+                length_mm: 10,
+                width_mm: 10,
+                height_mm: 10,
+              },
+            },
+            {
+              name: "create_box",
+              args: {
+                project_id: projectId,
+                name: "Cavity",
+                length_mm: 8,
+                width_mm: 8,
+                height_mm: 8,
+              },
+            },
+          ],
+        };
+      },
+      (request) => {
+        const content = request.messages.at(-1)?.content || "";
+        const payload = JSON.parse(content.slice(content.indexOf("{")));
+        bodyIds = payload.results.map((result) => result.data?.body_id);
+        assert(bodyIds.length === 2 && bodyIds.every(Boolean), content);
+        return {
+          toolCalls: [
+            {
               name: "boolean_cut",
               args: {
                 project_id: projectId,
-                target_body_id: "outer",
-                tool_body_id: "cavity",
+                target_body_id: bodyIds[0],
+                tool_body_id: bodyIds[1],
               },
             },
           ],
@@ -274,10 +305,11 @@ await test("P3-successful-boolean-state-reaches-next-turn", async () => {
       { output: "The requested boolean operation is complete." },
     ],
     (request, call) => {
-      if (call !== 3) return;
+      if (call !== 4) return;
       const content = request.messages.at(-1)?.content || "";
       assert(content.includes('"operation": "boolean_cut"'), content);
       assert(content.includes('"feature_applied": true'), content);
+      assert(content.includes(`"target_body_id": "${bodyIds[0]}"`), content);
       inspected = true;
     },
   );

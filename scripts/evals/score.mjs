@@ -254,7 +254,17 @@ export function scoreTrace(scenario, trace) {
     checks.box_created = hasOkCall("create_box") || Boolean(state.box_created);
   if (scenario.required_checks.includes("feature_applied"))
     checks.feature_applied =
-      hasCall("create_hole", "fillet", "chamfer", "boolean") || Boolean(state.feature_applied);
+      [
+        "create_hole",
+        "fillet",
+        "chamfer",
+        "boolean",
+        "boolean_cut",
+        "boolean_union",
+        "boolean_intersect",
+        "pocket",
+        "pad",
+      ].some((name) => hasOkCall(name)) || Boolean(state.feature_applied);
   if (scenario.required_checks.includes("validated"))
     checks.validated = hasOkCall("validate") || Boolean(state.validated);
   if (scenario.required_checks.includes("preview_rendered"))
