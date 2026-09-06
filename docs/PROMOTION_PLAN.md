@@ -2,14 +2,13 @@
 
 Status date: 2026-09-06
 
-This plan intentionally separates **verified Battenmark evidence** from future
-compatibility targets. Public claims should describe what has actually been
-proven, then label broader provider/client support as architecture or future
-validation work.
+This plan separates **verified Battenmark evidence** from future compatibility
+targets. Public claims should describe what has actually been proven, then label
+broader provider/client support as architecture or future validation work.
 
 ## Current verified story
 
-Battenmark now has two different kinds of strong client evidence:
+Battenmark now has two strong client paths plus one completed hard benchmark:
 
 1. **ChatGPT Work on macOS → Battenmark → FreeCAD 1.1.3 / OpenCascade → CAD exports → physical 3D print.**
    - geometry creation;
@@ -19,14 +18,25 @@ Battenmark now has two different kinds of strong client evidence:
    - FCStd / STEP / STL / 3MF export;
    - successful physical print of a **60 × 25 × 4 mm** calibration coupon with nominal **3 / 4 / 5 mm** holes.
 
-2. **Claude via MCP → Battenmark → FreeCAD 1.1.3 / OpenCascade → 50-revision hard enclosure workflow.**
+2. **Claude via MCP → Battenmark → FreeCAD 1.1.3 / OpenCascade.**
    - 75-tool discovery smoke proof;
-   - valid **20 × 15 × 5 mm / 1,500 mm³** OCC solid in the tiny interoperability test;
-   - full two-piece Orange Pi 4 Pro workflow through Battenmark only;
-   - persistence/reopen across **50 revisions**;
-   - 3MF export audit with **2 manifold objects**;
-   - exported 3MF combined volume **58,737.036 mm³** vs audited mesh sum **58,736.927 mm³** — **0.109 mm³** discrepancy;
-   - hard benchmark remains **PARTIAL / CAD_CORRECTION_REQUIRED** because the lid uses a solid plug instead of a hollow friction rim and the vents are blind instead of through-cut.
+   - valid **20 × 15 × 5 mm / 1,500 mm³** OCC solid;
+   - full initial two-piece Orange Pi 4 Pro workflow through Battenmark only;
+   - persistence/reopen across a 50-revision engineering session.
+
+3. **Corrected Orange Pi 4 Pro full-fidelity benchmark — PASS.**
+   - final corrected lid rim: **90.6 × 57.6 mm outer, 85.8 × 52.8 mm inner, 2.4 mm walls**;
+   - six true **2.4 × 55 mm** through-vents;
+   - final 3MF: **2 watertight manifold objects**;
+   - base mesh volume: **28,142.686683 mm³**;
+   - lid mesh volume: **13,138.560000 mm³**;
+   - analytical lid target: **13,138.56 mm³**;
+   - combined mesh volume: **41,281.246683 mm³**;
+   - Battenmark export volume: **41,281.356 mm³**;
+   - difference: **0.109317 mm³ / 0.000265%**;
+   - persistence/reopen through a fresh stdio MCP process: PASS;
+   - direct FreeCAD bypass: NO;
+   - overall benchmark: **PASS**.
 
 Hermes also has stock-client MCP interoperability evidence, while Agent Zero
 remains source-assessed rather than directly validated. See
@@ -38,7 +48,7 @@ validated client interoperability is an evidence claim.
 
 ## Launch sequence
 
-### P0 — complete before broad promotion
+### P0 — technical proof / repo readiness
 
 - [x] Repository is public.
 - [x] Apache-2.0 license, notices, security and contribution docs exist.
@@ -50,25 +60,30 @@ validated client interoperability is an evidence claim.
 - [x] README distinguishes validated client paths from general client-neutral architecture.
 - [x] ChatGPT Work physical-output proof completed.
 - [x] Claude tiny MCP interoperability proof completed.
-- [x] Hard two-piece Orange Pi 4 Pro real-world test completed through Battenmark only.
-- [x] Hard-test audit documented with revision, geometry, volume, export and failure evidence.
-- [x] 3MF export fidelity audited: two manifold objects, no phantom geometry, mesh/export volume agreement to 0.109 mm³.
-- [x] Public benchmark classification kept honest: **PARTIAL / CAD_CORRECTION_REQUIRED**.
-- [ ] Correct Orange Pi lid **solid plug → hollow perimeter friction rim**.
-- [ ] Correct Orange Pi **blind vents → through-vents**.
-- [ ] Rebuild, inspect and re-export the corrected enclosure through Battenmark only.
-- [ ] Confirm the corrected enclosure passes both geometry and specification-fidelity checks.
-- [ ] Refresh GitHub hero/social-preview around the corrected hard benchmark and approved branding.
-- [ ] Physical-print the corrected enclosure if the print adds useful fit/assembly evidence.
+- [x] Claude 50-revision hard enclosure workflow completed through Battenmark only.
+- [x] Initial PARTIAL hard-test audit documented rather than hidden.
+- [x] Solid lid plug corrected to hollow perimeter friction rim.
+- [x] Blind vents corrected to true through-vents.
+- [x] Corrected enclosure rebuilt, inspected and freshly exported through Battenmark only.
+- [x] Corrected enclosure passed geometry and specification-fidelity checks.
+- [x] Final 3MF independently audited: two watertight manifold objects, no phantom geometry.
+- [x] Fresh-process persistence/reopen verified.
+- [x] Hard benchmark promoted to **PASS**.
+- [ ] Refresh GitHub hero/social-preview around the corrected PASS and approved branding.
+- [ ] Verify final CI/checks on the promotion branch.
+
+A physical Orange Pi enclosure print is useful next-stage fit/assembly evidence,
+but it is **not required to establish the CAD execution benchmark**, because the
+final CAD, analytical geometry, export and persistence evidence already pass.
 
 ### P1 — launch package
 
 - [ ] Flagship 60–90 second demo video produced.
 - [ ] 3–5 polished public demo pages selected.
 - [ ] `Made with Battenmark` gallery created.
-- [ ] Public benchmark/result format finalized around separate geometry/export/spec-fidelity scores.
+- [x] Public benchmark/result format now separates geometry, export, persistence and spec-fidelity scoring.
 - [ ] Simple Battenmark landing page published.
-- [ ] GitHub social preview updated with approved brand asset and strongest corrected benchmark.
+- [ ] GitHub social preview updated with approved brand asset and corrected hard benchmark.
 - [ ] Repository topics finalized: `freecad`, `cad`, `3d-printing`, `llm`, `ai`, `open-source`, `mcp`, `agents`, `opencascade`.
 
 ### P2 — community launch
@@ -95,15 +110,15 @@ Preferred short description:
 
 Preferred proof statement:
 
-> ChatGPT Work has a physical-output Battenmark proof on macOS, and Claude has completed both a direct MCP interoperability proof and a 50-revision Battenmark-only Orange Pi 4 Pro enclosure workflow through FreeCAD/OpenCascade. The enclosure benchmark is intentionally published as PARTIAL until its lid rim and vents are corrected.
+> ChatGPT Work has a physical-output Battenmark proof on macOS, Claude is a validated Battenmark MCP client that completed the original 50-revision Orange Pi workflow, and the corrected two-piece Orange Pi 4 Pro enclosure now passes geometry, specification-fidelity, export and persistence checks entirely through Battenmark.
 
 Avoid broad claims such as “works with every LLM” until those paths have been
 validated through Battenmark itself.
 
 ## Demo hierarchy
 
-1. **Physical proof:** calibration coupon — simple, understandable, printed.
-2. **Hard real-world benchmark:** Orange Pi 4 Pro two-piece enclosure — currently PARTIAL; correction run is the next proof target.
+1. **Hard real-world benchmark:** corrected Orange Pi 4 Pro two-piece enclosure — **PASS**.
+2. **Physical proof:** calibration coupon — simple, understandable, physically printed.
 3. **Iterative CAD edit:** requirement change followed by rebuild and validation.
 4. **Round-trip engineering:** import → inspect → modify → export.
 5. **Assembly / diagnostics:** constrained multi-part example where supported.
@@ -111,7 +126,7 @@ validated through Battenmark itself.
 Every public demo should preserve:
 
 - exact prompt or task definition;
-- Battenmark version/SHA;
+- Battenmark version/SHA or project revision IDs;
 - client/runtime used;
 - FreeCAD version;
 - validation results and warnings;
@@ -120,28 +135,41 @@ Every public demo should preserve:
 - produced file formats;
 - screenshots or render evidence;
 - physical-print evidence when applicable;
-- known limitations or corrections.
+- known limitations, failures and recovery steps.
 
 If a body carries non-manifold-edge warnings, do **not** automatically treat the
 raw OpenCascade B-rep volume integral as ground truth. Cross-check mesh and/or
 analytical volume and publish the discrepancy.
 
+## Engineering issue preserved from the PASS
+
+The corrected benchmark exposed a worker synchronization defect:
+
+> Editing an existing pocket depth updated Battenmark metadata without reliably
+> rebuilding the worker geometry. Deleting/recreating the stale pocket through
+> Battenmark produced the correct persisted/exported geometry.
+
+A successful final result should not erase this regression candidate. It should
+be tracked and fixed separately.
+
 ## Community post strategy
 
 Posts should read like engineering reports, not advertisements. Lead with the
 problem, show the actual CAD result, explain how Battenmark sits between the
-agent and CAD backend, and invite reproducible testing.
+agent and CAD backend, show the failure/correction history, and invite
+reproducible testing.
 
-The PARTIAL Orange Pi result is useful evidence because it demonstrates the
-difference between:
+The Orange Pi story is stronger because it includes both a PARTIAL stage and a
+corrected PASS. It demonstrates the difference between:
 
 - client/tool interoperability;
 - CAD execution;
 - B-rep warnings and measurement reliability;
 - export fidelity;
-- and actual engineering/specification correctness.
+- actual engineering/specification correctness;
+- and recovery from detected platform/modeling failures.
 
-Target communities after P0 closes:
+Target communities after P0 presentation checks close:
 
 - FreeCAD forum/community spaces;
 - CAD and 3D-printing communities;
@@ -173,5 +201,5 @@ export success, **specification fidelity**, measurement source and tester notes.
 - Valid B-rep geometry is not the same as a correct mechanical design.
 - Export fidelity is not the same as specification correctness.
 - Do not hide failed tests; useful failures become benchmark material.
-- Do not broad-launch the Orange Pi enclosure as a success until the rim/vent correction run passes.
+- Preserve the worker-sync defect as engineering evidence even though the corrected benchmark passes.
 - Do not spend on ads before developer/community adoption signals appear.
