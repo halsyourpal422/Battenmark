@@ -2,7 +2,7 @@
 
 **Hold these drafts until the P0 promotion-readiness checklist is complete.**
 They are intentionally evidence-first and avoid claiming unvalidated client
-compatibility.
+compatibility or treating valid geometry as proof of perfect design fidelity.
 
 ## Show HN
 
@@ -22,10 +22,20 @@ preview/envelope workflows. The same canonical service is exposed over MCP,
 HTTP, CLI and Python surfaces.
 
 The client path we have actually proven end-to-end so far is ChatGPT Work on an
-Apple Silicon Mac → Battenmark → FreeCAD 1.1.3/OpenCascade. That test produced
-real parametric CAD, survived a worker restart, exported FCStd/STEP/STL/3MF,
-and produced a physical 3D print. We are deliberately not claiming other LLM
-clients are validated through Battenmark until we have equivalent evidence.
+Apple Silicon Mac → Battenmark → FreeCAD 1.1.3/OpenCascade. That path has
+produced real parametric CAD, survived worker restart/recovery, exported
+FCStd/STEP/STL/3MF, and produced a physical 3D print.
+
+We also ran a harder two-piece Orange Pi 4 Pro enclosure benchmark entirely
+through Battenmark. The infrastructure side passed: authoritative rebuild,
+separate valid base/lid solids, multi-format export and persistence across a
+50-revision session. The overall benchmark is intentionally published as
+**PARTIAL**, because several modeling/specification-fidelity issues remained.
+The failure details are in the repo rather than being hidden behind a geometry-
+validity check.
+
+We are deliberately not claiming other LLM clients are validated through
+Battenmark until we have equivalent evidence.
 
 The repo also includes release/evaluation evidence, canonical demos, assembly
 support for the current rigid subset, selector/gref work, backend capability
@@ -60,6 +70,14 @@ Apple Silicon macOS → Battenmark → FreeCAD 1.1.3/OpenCascade. We have exerci
 real geometry creation, parametric rebuilds, recovery after worker restart,
 FCStd/STEP/STL/3MF export and a successful physical print.
 
+A harder two-piece Orange Pi 4 Pro enclosure run then exercised separate base
+and lid bodies, sketches, pads, pockets, booleans, fillets, ventilation,
+rebuild/inspection, exports and persistence across 50 revisions. The final
+FreeCAD/OpenCascade solids were valid and the infrastructure path passed, but
+we classify the overall design result as **PARTIAL** because the run exposed
+real specification/modeling-semantic problems. Those failures are documented
+publicly as benchmark evidence.
+
 I am specifically interested in FreeCAD-oriented criticism: topology/selector
 failure cases, model-history assumptions, import/export edge cases, assembly
 limitations, and tasks that would expose places where the abstraction is wrong.
@@ -86,10 +104,17 @@ patterns, selectors and assembly constraints. Battenmark owns the project state,
 rebuilds the model, validates geometry and exports normal CAD formats. FreeCAD
 and OpenCascade provide the authoritative B-rep backend.
 
-The current end-to-end proof is ChatGPT Work on macOS using Battenmark to build
+The current physical proof is ChatGPT Work on macOS using Battenmark to build
 and validate a real FreeCAD model, export FCStd/STEP/STL/3MF and produce a
-physical print. I am now moving from simple proof parts into harder mechanical
-and enclosure-style tests.
+physical print.
+
+We then pushed the system with a two-piece Orange Pi 4 Pro enclosure. It
+completed through Battenmark without direct FreeCAD bypass, generated separate
+valid base/lid solids, exported manufacturing/interchange files and survived
+50 revisions plus reopen/persistence. I am **not** calling that design a full
+pass: the benchmark is PARTIAL because several geometry-operation semantics and
+spec-fidelity problems remained. That distinction — valid B-rep versus correct
+design — is one of the things the benchmark is meant to measure.
 
 I am looking for tasks that are difficult enough to reveal abstraction or
 reliability problems, not just visually impressive demos.
@@ -108,15 +133,21 @@ I have been testing an open-source project called Battenmark that lets an AI
 agent work through a typed CAD interface backed by FreeCAD/OpenCascade.
 
 The point is to generate real editable/validatable CAD, not just a mesh from a
-text-to-3D model. In the current proof, ChatGPT Work used Battenmark on my Mac to
-create a 60 × 25 × 4 mm calibration coupon with nominal 3/4/5 mm through-holes,
-rebuild and validate it, export normal CAD/print formats, and then I physically
-printed it.
+text-to-3D model. In the physical-print proof, ChatGPT Work used Battenmark on
+my Mac to create a 60 × 25 × 4 mm calibration coupon with nominal 3/4/5 mm
+through-holes, rebuild and validate it, export normal CAD/print formats, and
+then I physically printed it.
 
-The next public tests are more complicated enclosure/mechanical parts. I am
-interested in the kinds of practical parts people repeatedly need but hate
+A harder two-piece Orange Pi 4 Pro enclosure benchmark has also been completed.
+The Battenmark/FreeCAD execution, rebuild, valid solids, exports and persistence
+worked, but the design result is publicly labeled **PARTIAL** because some
+requirements and modeling semantics were not reproduced correctly. I think
+publishing those misses is more useful than showing only successful renders.
+
+I am interested in the kinds of practical parts people repeatedly need but hate
 modeling from scratch — brackets, adapters, electronics enclosures, mounts,
-fixtures, spacers, etc.
+fixtures, spacers, etc. Those make better benchmark tasks than decorative demo
+objects because dimensions and fit actually matter.
 
 GitHub: https://github.com/halsyourpal422/Battenmark
 
@@ -126,9 +157,10 @@ GitHub: https://github.com/halsyourpal422/Battenmark
 
 Battenmark is looking for a small first group of technical testers. Give it a
 real CAD task, preserve the exact prompt/task, and report whether the model
-rebuilt, validated and exported correctly. Failed tasks are useful — they become
-benchmark cases. Current authoritative backend: FreeCAD/OpenCascade. Current
-published end-to-end client proof: ChatGPT Work on macOS.
+rebuilt, validated **and matched the requested specification**. Failed tasks are
+useful — they become benchmark cases. Current authoritative backend:
+FreeCAD/OpenCascade. Current published end-to-end client proof: ChatGPT Work on
+macOS.
 
 ### What to ask testers to return
 
@@ -139,6 +171,7 @@ published end-to-end client proof: ChatGPT Work on macOS.
 - number of corrective turns;
 - rebuild result;
 - geometry validation result;
+- dimensional/specification fidelity result;
 - requested export result;
 - screenshots or files where shareable;
 - what failed or surprised them.
