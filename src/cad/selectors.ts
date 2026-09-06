@@ -404,7 +404,9 @@ export function queryEnvelopeGeometry(
   let matches = entity === "face" ? filterFaces(faces, sel, vars) : filterEdges(edges, sel, vars, faces);
 
   if (sel.gref) {
-    const hit = [...faces, ...edges].find((m) => m.semantic_id === sel.gref);
+    // Search only within the requested entity type — a face gref used as edge (or vice versa) is a lost reference
+    const searchPool = entity === "face" ? faces : edges;
+    const hit = searchPool.find((m) => m.semantic_id === sel.gref);
     if (!hit) {
       throw cadError("GEOMETRY_REFERENCE_LOST", `Geometry reference '${sel.gref}' is no longer present.`, {
         gref: sel.gref,

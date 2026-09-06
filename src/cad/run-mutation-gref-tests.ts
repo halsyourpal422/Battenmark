@@ -53,6 +53,24 @@ function applyOps(doc: CadDocument, ops: Operation[]): CadDocument {
   return r.document;
 }
 
+function findFeature(doc: CadDocument, kind: string): string {
+  const f = doc.features.find((f) => f.kind === kind);
+  assert(f, `no feature of kind '${kind}'`);
+  return f.id;
+}
+
+function findSketch(doc: CadDocument): string {
+  const f = doc.features.find((f) => f.kind === "sketch");
+  assert(f, "no sketch feature");
+  return f.id;
+}
+
+function findHole(doc: CadDocument): string {
+  const f = doc.features.find((f) => f.kind === "hole");
+  assert(f, "no hole feature");
+  return f.id;
+}
+
 /** Query a box envelope and return the first match's semantic_id. */
 function grefOf(doc: CadDocument, selector: string | object): string {
   const box = doc.features.find((f) => f.kind === "box");
@@ -216,61 +234,60 @@ run("M06-set-parameter-stability", "set_parameter: pre-mutation face gref after 
   return `gref=${faceGref} matches=${q.match_count}`;
 });
 
-// 7. set_feature_param — same as set_parameter for the envelope
 run("M07-set-feature-param-stability", "set_feature_param: pre-mutation edge gref", () => {
   const doc0 = applyOps(emptyDocument("m07"), BOX_80_50_12);
   const edgeGref = grefOf(doc0, { entity: "edge", selector: "all_vertical" });
+  const boxId = findFeature(doc0, "box");
   const doc1 = applyOps(doc0, [
-    { op: "set_feature_param", feature_id: "f_box_1", param: "height", value: 20 },
+    { op: "set_feature_param", feature_id: boxId, param: "height", value: 20 },
   ]);
   const env = { origin: { x: 0, y: 0, z: 0 }, L: 80, W: 50, H: 12, createdBy: "Box" };
   const q = queryEnvelopeGeometry(env, { entity: "edge", gref: edgeGref });
   return `gref=${edgeGref} matches=${q.match_count}`;
 });
 
-// 8. delete_feature — feature removed, associated geometry gone
 run("M08-delete-feature-lost", "delete_feature: gref of deleted feature is lost", () => {
   const doc0 = applyOps(emptyDocument("m08"), [
     ...BOX_80_50_12,
     { op: "create_body", name: "Tool" },
     { op: "create_box", body_id: "Tool", name: "SmallBox", length_mm: 10, width_mm: 10, height_mm: 10, origin: { x: 35, y: 20, z: 12 } },
-    { op: "pad", sketch_id: "sketch_1", depth_mm: 10 },
   ]);
-  // Get gref of the small box's top face
   const env = { origin: { x: 35, y: 20, z: 12 }, L: 10, W: 10, H: 10, createdBy: "SmallBox" };
   const q = queryEnvelopeGeometry(env, { entity: "face", selector: "top_face" });
   const faceGref = q.matches[0]!.semantic_id;
-  // Delete the feature — the geometry is gone
-  // But the JSCAD envelope is independent of the feature tree
   return `gref=${faceGref} (envelope independent of feature tree)`;
 });
 
-// 9. pad — extrusion changes topology
 run("M09-pad-stability", "Pad: pre-mutation face gref after extrusion", () => {
-  const doc0 = applyOps(emptyDocument("m09"), [
-    { op: "create_body", name: "Body" },
+  const docPreSketch = applyOps(emptyDocument("m09"), [
+    ...BOX_80_50_12,
     { op: "create_sketch", body_id: "Body", plane: "XY" },
-    { op: "add_rectangle", sketch_id: "sketch_1", x_mm: 0, y_mm: 0, width_mm: 80, height_mm: 50 },
+  ]);
+  const sketchId = findSketch(docPreSketch);
+  const doc0 = applyOps(docPreSketch, [
+    { op: "add_rectangle", sketch_id: sketchId, x_mm: 0, y_mm: 0, width_mm: 80, height_mm: 50 },
   ]);
   const faceGref = grefOf(doc0, { entity: "face", selector: "top_face" });
   const doc1 = applyOps(doc0, [
-    { op: "pad", sketch_id: "sketch_1", depth_mm: 12 },
+    { op: "pad", sketch_id: sketchId, depth_mm: 12 },
   ]);
-  const env = { origin: { x: 0, y: 0, z: 0 }, L: 80, W: 50, H: 12, createdBy: "Body" };
+  const env = { origin: { x: 0, y: 0, z: 0 }, L: 80, W: 50, H: 12, createdBy: "Box" };
   const q = queryEnvelopeGeometry(env, { entity: "face", gref: faceGref });
   return `gref=${faceGref} matches=${q.match_count}`;
 });
 
-// 10. pocket — cavity changes topology
 run("M10-pocket-stability", "Pocket: pre-mutation face gref after cavity", () => {
-  const doc0 = applyOps(emptyDocument("m10"), [
+  const docPreSketch = applyOps(emptyDocument("m10"), [
     ...BOX_80_50_12,
     { op: "create_sketch", body_id: "Body", plane: "XY" },
-    { op: "add_rectangle", sketch_id: "sketch_1", x_mm: 10, y_mm: 10, width_mm: 60, height_mm: 30 },
+  ]);
+  const sketchId = findSketch(docPreSketch);
+  const doc0 = applyOps(docPreSketch, [
+    { op: "add_rectangle", sketch_id: sketchId, x_mm: 10, y_mm: 10, width_mm: 60, height_mm: 30 },
   ]);
   const faceGref = grefOf(doc0, { entity: "face", selector: "top_face" });
   const doc1 = applyOps(doc0, [
-    { op: "pocket", sketch_id: "sketch_1", depth_mm: 6 },
+    { op: "pocket", sketch_id: sketchId, depth_mm: 6 },
   ]);
   const env = { origin: { x: 0, y: 0, z: 0 }, L: 80, W: 50, H: 12, createdBy: "Box" };
   const q = queryEnvelopeGeometry(env, { entity: "face", gref: faceGref });
@@ -296,8 +313,9 @@ run("M12-pattern-stability", "Pattern: pre-mutation edge gref after linear patte
     { op: "create_hole", body_id: "Body", face: "top_face", diameter_mm: 5, through: true, x_mm: 20, y_mm: 25 },
   ]);
   const edgeGref = grefOf(doc0, { entity: "edge", selector: "all_vertical" });
+  const holeId = findHole(doc0);
   const doc1 = applyOps(doc0, [
-    { op: "create_pattern", feature_id: "f_hole_1", count: 3, dx_mm: 20 },
+    { op: "create_pattern", feature_id: holeId, count: 3, dx_mm: 20 },
   ]);
   const env = { origin: { x: 0, y: 0, z: 0 }, L: 80, W: 50, H: 12, createdBy: "Box" };
   const q = queryEnvelopeGeometry(env, { entity: "edge", gref: edgeGref });
@@ -308,8 +326,9 @@ run("M12-pattern-stability", "Pattern: pre-mutation edge gref after linear patte
 run("M13-rename-stability", "Rename: gref unchanged", () => {
   const doc0 = applyOps(emptyDocument("m13"), BOX_80_50_12);
   const edgeGref = grefOf(doc0, { entity: "edge", selector: "top_perimeter" });
+  const boxId = findFeature(doc0, "box");
   const doc1 = applyOps(doc0, [
-    { op: "rename_feature", feature_id: "f_box_1", name: "RenamedBox" },
+    { op: "rename_feature", feature_id: boxId, name: "RenamedBox" },
   ]);
   const env = { origin: { x: 0, y: 0, z: 0 }, L: 80, W: 50, H: 12, createdBy: "Box" };
   const q = queryEnvelopeGeometry(env, { entity: "edge", gref: edgeGref });
@@ -334,13 +353,12 @@ run("M14-visibility-stability", "Visibility: gref unchanged", () => {
 run("M15-rollback-stability", "Rollback: gref restored from snapshot", () => {
   const doc0 = applyOps(emptyDocument("m15"), BOX_80_50_12);
   const faceGref = grefOf(doc0, { entity: "face", selector: "top_face" });
-  const doc1 = applyOps(doc0, [
-    { op: "fillet", body_id: "Body", radius_mm: 2, edges: "top_perimeter" },
-  ]);
-  // Rollback to before fillet
-  const revResult = applyOperation(doc0, { op: "save_revision", label: "pre-fillet" });
-  const revId = (revResult.result.data as any)?.revision_id;
+  const { document: docRev, result: revResult } = applyOperation(doc0, { op: "save_revision", label: "pre-fillet" });
+  const revId = (revResult.data as { id?: string })?.id;
   if (revId) {
+    const doc1 = applyOps(docRev, [
+      { op: "fillet", body_id: "Body", radius_mm: 2, edges: "top_perimeter" },
+    ]);
     const doc2 = applyOps(doc1, [{ op: "rollback_revision", revision_id: revId }]);
     const env = { origin: { x: 0, y: 0, z: 0 }, L: 80, W: 50, H: 12, createdBy: "Box" };
     const q = queryEnvelopeGeometry(env, { entity: "face", gref: faceGref });
@@ -403,12 +421,9 @@ run("LOST-empty-string", "Empty gref throws", () => {
 
 run("SERIAL-gref-survives-json", "geometryRefs survives JSON serialize/deserialize", () => {
   const doc0 = applyOps(emptyDocument("serial1"), BOX_80_50_12);
-  // Trigger query_geometry to populate geometryRefs
-  const env = { origin: { x: 0, y: 0, z: 0 }, L: 80, W: 50, H: 12, createdBy: "Box" };
-  const q = queryEnvelopeGeometry(env, { entity: "face", selector: "top_face" });
-  applyOperation(doc0, { op: "query_geometry", body_id: "Body", entity: "face", selector: "top_face" });
-  // Serialize round-trip
-  const json = JSON.stringify(doc0);
+  // applyOperation clones the document — thread the returned document
+  const { document: docA } = applyOperation(doc0, { op: "query_geometry", body_id: "Body", entity: "face", selector: "top_face" });
+  const json = JSON.stringify(docA);
   const doc1 = JSON.parse(json);
   const grefs = doc1.geometryRefs ?? [];
   assert(grefs.length > 0, `geometryRefs empty after round-trip: ${grefs.length}`);
@@ -418,29 +433,31 @@ run("SERIAL-gref-survives-json", "geometryRefs survives JSON serialize/deseriali
 });
 
 run("SERIAL-gref-survives-revision", "geometryRefs preserved through revision snapshot/restore", () => {
-  const doc0 = applyOps(emptyDocument("serial2"), BOX_80_50_12);
-  // Populate geometryRefs via query_geometry
-  applyOperation(doc0, { op: "query_geometry", body_id: "Body", entity: "face", selector: "top_face" });
-  applyOperation(doc0, { op: "query_geometry", body_id: "Body", entity: "edge", selector: "top_perimeter" });
-  const grefsBefore = (doc0.geometryRefs ?? []).length;
+  const { document: docA } = applyOperation(
+    applyOperation(
+      applyOps(emptyDocument("serial2"), BOX_80_50_12),
+      { op: "query_geometry", body_id: "Body", entity: "face", selector: "top_face" },
+    ).document,
+    { op: "query_geometry", body_id: "Body", entity: "edge", selector: "top_perimeter" },
+  );
+  const grefsBefore = (docA.geometryRefs ?? []).length;
   assert(grefsBefore >= 2, `expected >=2 grefs, got ${grefsBefore}`);
-  // Save revision
-  const rev = applyOperation(doc0, { op: "save_revision", label: "serial-test" });
-  const revId = (rev.result.data as any)?.revision_id;
+  const { document: docB, result: revResult } = applyOperation(docA, { op: "save_revision", label: "serial-test" });
+  const revId = (revResult.data as { id?: string })?.id;
   assert(revId, "no revision id");
-  // Mutate
-  const doc1 = applyOps(doc0, [{ op: "fillet", body_id: "Body", radius_mm: 2, edges: "top_perimeter" }]);
-  // Rollback
-  const doc2 = applyOps(doc1, [{ op: "rollback_revision", revision_id: revId }]);
-  const grefsAfter = (doc2.geometryRefs ?? []).length;
+  const { document: docC } = applyOperation(docB, { op: "fillet", body_id: "Body", radius_mm: 2, edges: "top_perimeter" });
+  const { document: docD } = applyOperation(docC, { op: "rollback_revision", revision_id: revId });
+  const grefsAfter = (docD.geometryRefs ?? []).length;
   assert(grefsAfter === grefsBefore, `grefs changed: ${grefsBefore} → ${grefsAfter}`);
   return `before=${grefsBefore} after=${grefsAfter} survived=true`;
 });
 
 run("SERIAL-gref-fingerprint-shape", "geometryRefs fingerprint has expected keys after round-trip", () => {
-  const doc0 = applyOps(emptyDocument("serial3"), BOX_80_50_12);
-  applyOperation(doc0, { op: "query_geometry", body_id: "Body", entity: "face", selector: "top_face" });
-  const json = JSON.stringify(doc0);
+  const { document: docA } = applyOperation(
+    applyOps(emptyDocument("serial3"), BOX_80_50_12),
+    { op: "query_geometry", body_id: "Body", entity: "face", selector: "top_face" },
+  );
+  const json = JSON.stringify(docA);
   const doc1 = JSON.parse(json);
   const grefs = doc1.geometryRefs ?? [];
   assert(grefs.length > 0, "no grefs");
@@ -455,9 +472,9 @@ run("SERIAL-gref-fingerprint-shape", "geometryRefs fingerprint has expected keys
 run("SERIAL-gref-stored-by-query-op", "query_geometry through applyOperation populates geometryRefs", () => {
   const doc0 = applyOps(emptyDocument("serial4"), BOX_80_50_12);
   assert((doc0.geometryRefs ?? []).length === 0, "geometryRefs not empty initially");
-  applyOperation(doc0, { op: "query_geometry", body_id: "Body", entity: "face", selector: "top_face" });
-  applyOperation(doc0, { op: "query_geometry", body_id: "Body", entity: "edge", selector: "top_perimeter" });
-  const grefs = doc0.geometryRefs ?? [];
+  const { document: docA } = applyOperation(doc0, { op: "query_geometry", body_id: "Body", entity: "face", selector: "top_face" });
+  const { document: docB } = applyOperation(docA, { op: "query_geometry", body_id: "Body", entity: "edge", selector: "top_perimeter" });
+  const grefs = docB.geometryRefs ?? [];
   assert(grefs.length >= 2, `expected >=2, got ${grefs.length}`);
   const faceGref = grefs.find((g) => g.entity === "face");
   const edgeGref = grefs.find((g) => g.entity === "edge");

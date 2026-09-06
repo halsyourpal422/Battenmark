@@ -79,6 +79,25 @@ jobs:
           CMD="$(python3 -c "import json;print(json.load(open('/opt/freecad/ok.json'))['cmd'])")"
           echo "FreeCADCmd: $CMD"
 
+  gref-matrix:
+    name: gref mutations / public-path regressions
+    runs-on: ubuntu-latest
+    needs: [typecheck]
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: |
+          set -e
+          echo "== test:gref-mutations =="
+          npm run --silent test:gref-mutations
+          echo "== test:gref-public =="
+          npm run --silent test:gref-public
+
   unit-core:
     name: schema / discovery / registry / parametric / selectors / conformance
     runs-on: ubuntu-latest

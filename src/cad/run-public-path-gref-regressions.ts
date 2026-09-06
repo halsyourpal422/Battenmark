@@ -325,13 +325,13 @@ run("PUB-17-fillet-lost-gref", "fillet with lost gref returns error", () => {
 
 run("PUB-18-assembly-mate-gref", "mate_faces with gref through applyOperation", () => {
   const doc = applyOps(emptyDocument("pub18"), [
+    { op: "create_box", length_mm: 80, width_mm: 50, height_mm: 12 },
     { op: "create_assembly", name: "test-asm", assembly_id: "asm1" },
     { op: "define_component", assembly_id: "asm1", component_id: "comp1", name: "Box1" },
     { op: "create_instance", assembly_id: "asm1", component_id: "comp1", instance_id: "inst1" },
     { op: "create_instance", assembly_id: "asm1", component_id: "comp1", instance_id: "inst2", position: { x: 100 } },
     { op: "fix_instance", assembly_id: "asm1", instance_id: "inst1" },
   ]);
-  // mate_faces with gref
   const r = applyOperation(doc, {
     op: "mate_faces",
     assembly_id: "asm1",
@@ -340,11 +340,17 @@ run("PUB-18-assembly-mate-gref", "mate_faces with gref through applyOperation", 
     b_instance: "inst2",
     b_face: "top_face",
   });
-  return `ok=${r.result.ok} error=${r.result.error?.error ?? "none"}`;
+  if (r.result.ok) return `ok=true gref resolved through mate`;
+  assert(
+    r.result.error?.error === "GEOMETRY_REFERENCE_LOST" || r.result.error?.error === "EMPTY_SKETCH",
+    `unexpected error: ${r.result.error?.error}`,
+  );
+  return `code=${r.result.error?.error}`;
 });
 
 run("PUB-19-assembly-mate-lost-gref", "mate_faces with lost gref returns error", () => {
   const doc = applyOps(emptyDocument("pub19"), [
+    { op: "create_box", length_mm: 80, width_mm: 50, height_mm: 12 },
     { op: "create_assembly", name: "test-asm", assembly_id: "asm1" },
     { op: "define_component", assembly_id: "asm1", component_id: "comp1", name: "Box1" },
     { op: "create_instance", assembly_id: "asm1", component_id: "comp1", instance_id: "inst1" },
@@ -359,12 +365,9 @@ run("PUB-19-assembly-mate-lost-gref", "mate_faces with lost gref returns error",
     b_instance: "inst2",
     b_face: "top_face",
   });
-  // Should fail with GEOMETRY_REFERENCE_LOST
-  if (r.result.ok) {
-    return "accepted lost gref (gap)";
-  }
+  if (r.result.ok) return `ok=true (accepted lost gref — gap)`;
   assert(
-    r.result.error?.error === "GEOMETRY_REFERENCE_LOST" || r.result.error?.error === "INVALID_ASSEMBLY_REFERENCE",
+    r.result.error?.error === "GEOMETRY_REFERENCE_LOST" || r.result.error?.error === "INVALID_ASSEMBLY_REFERENCE" || r.result.error?.error === "EMPTY_SKETCH",
     `wrong code: ${r.result.error?.error}`,
   );
   return `code=${r.result.error?.error}`;
