@@ -197,7 +197,7 @@ This is pre-1.0 alpha software; APIs may change.
 - Bodies carrying non-manifold-edge warnings can produce **unreliable B-rep volume
   integrals**; benchmark evidence should cross-check mesh/analytical volume rather
   than treating a raw OpenCascade volume number as ground truth in that condition
-- A real Orange Pi correction run exposed a worker-sync regression candidate:
+- A real Orange Pi correction run exposed [issue #26](https://github.com/halsyourpal422/Battenmark/issues/26):
   editing an existing pocket depth updated metadata without reliably rebuilding
   the worker geometry; deleting/recreating the stale pocket through Battenmark
   produced the correct persisted/exported shape
