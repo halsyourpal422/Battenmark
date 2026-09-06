@@ -1,57 +1,68 @@
 # Battenmark Correction Queue
 
-Status: 2026-09-06
+Status: 2026-09-06 — **P0 Orange Pi correction CLOSED**
 
-This file tracks the immediate CAD corrections exposed by the current public
-Orange Pi 4 Pro benchmark before that benchmark can be promoted as a full-fidelity
-success.
+The Orange Pi 4 Pro two-piece enclosure correction task is complete. The hard
+benchmark has moved from **PARTIAL / CAD_CORRECTION_REQUIRED** to **PASS**.
 
-## P0 — Orange Pi 4 Pro two-piece enclosure
+## Closed P0 — Orange Pi 4 Pro two-piece enclosure
 
-### 1. Lid mating feature
+### 1. Lid mating feature — COMPLETE
 
-**Current:** full-area solid plug, 90.6 × 57.6 × 4 mm.  
-**Required:** hollow perimeter friction rim, approximately 2.4 mm wall thickness.
+Final geometry:
 
-Acceptance criteria:
+- outer rim: **90.6 × 57.6 mm**;
+- inner opening: **85.8 × 52.8 mm**;
+- wall thickness: **2.4 mm**;
+- rim elevation: **z=2 → z=6 mm**;
+- full-area solid plug: **absent**.
 
-- full-area solid plug removed;
-- perimeter rim remains on all four sides;
-- interior cavity open or terminated at the cap inner face only;
-- no geometry forcing the base walls outward during assembly;
-- rebuild/inspection confirms intended mating geometry.
+### 2. Vent function — COMPLETE
 
-### 2. Vent function
+Final geometry:
 
-**Current:** six blind slots, 2.4 × 55 mm, ending at z=3.  
-**Required:** six true through-vents extending through the complete lid/rim stack.
+- six slots preserved at **2.4 × 55 mm**;
+- stale blind vent pocket removed;
+- replacement through-slot pocket depth: **6 mm**;
+- residual `z=3` vent floors: **absent**;
+- exterior-to-interior airflow path: **confirmed**.
 
-Acceptance criteria:
+### 3. Post-correction evidence — COMPLETE
 
-- six slots preserved at 2.4 × 55 mm;
-- each slot creates an open airflow path from exterior to enclosure interior;
-- no residual 3 mm vent floor remains;
-- rebuild and face inspection confirm through penetration.
+- authoritative rebuild: PASS;
+- separate base/lid inspection: PASS;
+- specification fidelity: PASS;
+- FCStd / STEP / STL / 3MF fresh export: PASS;
+- 3MF objects: **2**;
+- boundary mesh edges: **0 / 0**;
+- non-manifold mesh edges: **0 / 0**;
+- base mesh volume: **28,142.686683 mm³**;
+- lid mesh volume: **13,138.560000 mm³**;
+- analytical lid target: **13,138.56 mm³**;
+- combined mesh volume: **41,281.246683 mm³**;
+- Battenmark export volume: **41,281.356 mm³**;
+- discrepancy: **0.109317 mm³ / 0.000265%**;
+- fresh-process persistence/reopen: PASS;
+- direct FreeCAD bypass: NO;
+- overall benchmark: **PASS**.
 
-### 3. Post-correction evidence
+See `docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md`.
 
-After both fixes:
+## New engineering regression item
 
-- run authoritative rebuild;
-- inspect corrected lid faces;
-- inspect base and lid separately;
-- preserve warnings/errors exactly;
-- re-export FCStd / STEP / STL / 3MF;
-- parse the new 3MF;
-- confirm exactly two expected build objects;
-- compare mesh sum against 3MF combined volume;
-- use mesh/analytical cross-check if non-manifold-edge warnings persist;
-- verify print orientation notes remain correct;
-- classify geometry validity and specification fidelity separately;
-- only then decide whether the benchmark can move from PARTIAL to PASS.
+The correction exposed a separate Battenmark platform issue:
+
+> Editing an existing pocket depth updated Battenmark metadata from 3 mm to 6 mm
+> without reliably rebuilding the worker geometry. Deleting/recreating only the
+> stale pocket through Battenmark produced the correct persisted/exported shape.
+
+This is now a platform bug/regression candidate and should be fixed independently
+of the completed enclosure benchmark.
 
 ## Promotion dependency
 
-PR #25 should remain draft until this correction run is completed or the project
-explicitly decides to launch while presenting the Orange Pi result as a published
-PARTIAL benchmark rather than a finished enclosure success.
+The Orange Pi CAD correction is **no longer a blocker** for PR #25.
+
+Remaining promotion work is presentation/readiness work: final CI, refreshed
+hero/social assets around the corrected PASS, flagship demo packaging, and
+public launch sequencing.
