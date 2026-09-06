@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="media/github-hero/github-hero.png" alt="Battenmark CAD demo gallery" width="100%">
+</p>
+
 # Battenmark
 
 **Open, backend-neutral CAD infrastructure for AI agents and software.**
@@ -12,22 +16,56 @@ inspecting, validating and exporting authoritative CAD geometry across
 interchangeable CAD backends. Callers request `create_hole` — never
 `PartDesign::Hole`. No transport owns the model; one canonical service does.
 
+## Verified end-to-end proof
+
+As of **September 6, 2026**, the published client path that has been proven
+end-to-end on physical hardware is:
+
 ```text
-ChatGPT / Claude / Gemini / Grok / Codex / local models / IDE agents / custom apps
-                                   │
-                    MCP / HTTP / Python / CLI
-                                   │
-                                   ▼
-                         Battenmark Core
-                                   │
-                    typed CAD operations / CAD IR
-                                   │
-                        Backend Registry
-                                   │
-             ┌─────────────────────┼──────────────────────┐
-             ▼                     ▼                      ▼
-          FreeCAD                JSCAD              future adapters
-     authoritative B-rep        preview        build123d/CadQuery/etc.
+ChatGPT Work on macOS
+        │
+        ▼
+    Battenmark
+        │
+        ▼
+FreeCAD 1.1.3 / OpenCascade
+        │
+        ├── FCStd
+        ├── STEP
+        ├── STL
+        └── 3MF
+        │
+        ▼
+physical 3D print
+```
+
+That path has been exercised with real geometry creation, parametric rebuilds,
+worker restart/recovery, export, validation, and a successfully printed
+**60 × 25 × 4 mm calibration coupon with nominal 3 / 4 / 5 mm through-holes**.
+
+Battenmark is intentionally provider-neutral, but names of other LLM clients or
+providers should be treated as compatibility targets unless a separate
+end-to-end Battenmark validation is published for them.
+
+## Architecture
+
+```text
+AI agents / IDE agents / custom software clients
+                    │
+         MCP / HTTP / Python / CLI
+                    │
+                    ▼
+              Battenmark Core
+                    │
+         typed CAD operations / CAD IR
+                    │
+             Backend Registry
+                    │
+      ┌─────────────┼──────────────────┐
+      ▼             ▼                  ▼
+   FreeCAD        JSCAD          future adapters
+ authoritative    preview      build123d/CadQuery/etc.
+   B-rep
 ```
 
 - **FreeCAD / OpenCascade** — authoritative B-rep kernel (headless JSON-lines worker)
@@ -134,6 +172,7 @@ Full list: [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 | Service & persistence | [docs/SERVICE.md](docs/SERVICE.md) · [docs/AUTH.md](docs/AUTH.md) |
 | Import / export & preview | [docs/IMPORT.md](docs/IMPORT.md) · [docs/PREVIEW.md](docs/PREVIEW.md) |
 | Platforms & validation | [docs/MACOS.md](docs/MACOS.md) · [docs/LINUX.md](docs/LINUX.md) · [docs/RELEASE.md](docs/RELEASE.md) |
+| Public promotion / adoption | [docs/PROMOTION_PLAN.md](docs/PROMOTION_PLAN.md) |
 
 ## Compatibility identifiers
 
@@ -182,10 +221,11 @@ Each demo summary page contains: purpose, prompt summary, result, validation, ex
 
 | Asset | Description |
 |-------|-------------|
-| [GitHub Hero](media/github-hero/github-hero.png) | 1280×640 collage of all demo previews |
-| [Social Preview](media/social-preview/social-preview.png) | 1280×640 with branding + SHA |
+| [GitHub Hero](media/github-hero/github-hero.png) | 1280×640 collage of canonical demo previews; now displayed at the top of this README |
+| [Social Preview](media/social-preview/social-preview.png) | 1280×640 social-card asset |
 | [Architecture Diagram](media/architecture/architecture.mmd) | Mermaid flowchart of Battenmark core/transports/backends |
-| [Demo Video Script](media/demo-video-script.md) | 45–60s shot list + production notes |
+| [Demo Video Script](media/demo-video-script.md) | Flagship public-demo shot list + production notes |
+| [Brand Asset Guide](media/brand/README.md) | Canonical locations and filenames for the approved Battenmark mark |
 
 ### Key Technical Findings (Preserved)
 
