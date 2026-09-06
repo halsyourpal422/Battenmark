@@ -1,15 +1,17 @@
 <p align="center">
-  <img src="media/github-hero/github-hero.png" alt="Battenmark CAD demo gallery" width="100%">
+  <img src="media/brand/battenmark-lockup-primary.png" alt="Battenmark" width="720">
 </p>
 
-# Battenmark
-
-**Open, backend-neutral CAD infrastructure for AI agents and software.**
+<p align="center"><strong>Open, backend-neutral CAD infrastructure for AI agents and software.</strong></p>
 
 [![CI](https://github.com/halsyourpal422/Battenmark/actions/workflows/ci.yml/badge.svg)](https://github.com/halsyourpal422/Battenmark/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![schema](https://img.shields.io/badge/schema-2-informational.svg)
 ![MCP](https://img.shields.io/badge/MCP-5.0.0-informational.svg)
+
+<p align="center">
+  <img src="media/github-hero/github-hero.png" alt="Battenmark CAD demo gallery" width="100%">
+</p>
 
 Battenmark provides a typed, backend-neutral interface for creating, editing,
 inspecting, validating and exporting authoritative CAD geometry across
@@ -221,11 +223,14 @@ Each demo summary page contains: purpose, prompt summary, result, validation, ex
 
 | Asset | Description |
 |-------|-------------|
-| [GitHub Hero](media/github-hero/github-hero.png) | 1280×640 collage of canonical demo previews; now displayed at the top of this README |
+| [Primary Battenmark mark](media/brand/battenmark-mark-primary.png) | Approved standalone dark-on-light geometric B mark |
+| [Reversed Battenmark mark](media/brand/battenmark-mark-reversed.png) | Approved light/reversed standalone mark for dark surfaces |
+| [Primary Battenmark lockup](media/brand/battenmark-lockup-primary.png) | Approved horizontal mark + wordmark used at the top of this README |
+| [GitHub Hero](media/github-hero/github-hero.png) | 1280×640 collage of canonical demo previews |
 | [Social Preview](media/social-preview/social-preview.png) | 1280×640 social-card asset |
 | [Architecture Diagram](media/architecture/architecture.mmd) | Mermaid flowchart of Battenmark core/transports/backends |
 | [Demo Video Script](media/demo-video-script.md) | Flagship public-demo shot list + production notes |
-| [Brand Asset Guide](media/brand/README.md) | Canonical locations and filenames for the approved Battenmark mark |
+| [Brand Asset Guide](media/brand/README.md) | Canonical usage rules for the approved Battenmark artwork |
 
 ### Key Technical Findings (Preserved)
 
