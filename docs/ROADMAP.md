@@ -16,29 +16,27 @@ Chronology of the current program (evidence-driven; do not skip gates).
 - Phase 7C.8 evidence closeout — frozen v4 18-row GPT-4o run plus credential-free
   forensic qualification. Canonical A/B evidence is preserved; no additional paid
   rerun or skill/scorer rewrite is justified by the current traces.
+- Phase 7C integration closeout — PR #18 merged; historical stacked PRs retired.
+- Topology/reference robustness — gref audit, mutation test matrix (16 families),
+  public-path regressions, minimum root fix (auto-populate geometryRefs[]),
+  serialization round-trip proofs, contract documentation.
 
 ## Current
 
-- **Phase 7C integration closeout — PR #18.** Consolidate the completed evaluation
-  lineage against `main`, preserve the frozen evaluated source SHA and evidence,
-  verify normal PR CI plus exact-head evaluation-integrity CI, and complete an
-  independent production/evaluation-boundary review before any merge decision.
-- Historical stacked Phase 7C PRs remain audit trail only and must not be merged
-  independently while PR #18 is the integration path.
+- **Gref resilience hardening.** Add fingerprint fallback to JSCAD envelope path
+  (assembly solver), implement identity-based grefs (non-positional), and add
+  automated regression tests that verify gref stability after topology mutations
+  across all backend paths.
+- Phase 7D MCP skill discovery remains deferred.
 
-## Next after Phase 7C integration
+## Next after topology/reference robustness
 
-- **Topology/reference robustness — deepen persistent geometry-reference (`gref`)
-  guarantees across edit, rebuild, inspection, and export paths.** This is the next
-  core CAD reliability priority because stable references directly affect agent
-  correctness and downstream assembly/edit workflows.
-- Add regression fixtures that intentionally mutate geometry/topology and prove
-  public selectors either retain identity or fail with structured, recoverable
-  reference errors instead of silently drifting.
-- Keep Phase 7D MCP skill discovery deferred. The current v4 A/B evidence does not
-  demonstrate a reliable measurable skill benefit, and the forensic review does not
-  justify more paid reruns or another skill rewrite simply to improve the recorded
-  result.
+- **Gref resilience hardening.** Add fingerprint fallback to JSCAD envelope path
+  (assembly solver), implement identity-based grefs (non-positional), and add
+  automated regression tests that verify gref stability after topology mutations
+  across all backend paths.
+- Phase 7D MCP skill discovery remains deferred — current evidence does not
+  justify another paid rerun or skill rewrite.
 
 ## Later candidates
 

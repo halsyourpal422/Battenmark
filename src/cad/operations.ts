@@ -4,6 +4,7 @@ import type {
   Dim,
   FaceName,
   Feature,
+  GeometryRef,
   GeometrySelector,
   JsonValue,
   Operation,
@@ -688,8 +689,29 @@ function applyMutating(doc: CadDocument, op: Operation): ToolResult {
       };
     }
     case "query_geometry": {
-      const entity = op.entity ?? (typeof op.selector === "object" && op.selector?.entity) ?? "edge";
-      const data = queryOp(doc, entity === "face" ? "face" : "edge", op.selector, op.body_id);
+      const rawEntity = op.entity ?? (typeof op.selector === "object" ? op.selector?.entity : undefined);
+      const selEntity: "face" | "edge" = rawEntity === "face" ? "face" : "edge";
+      const data = queryOp(doc, selEntity, op.selector, op.body_id);
+      if (data.matches && Array.isArray(data.matches)) {
+        const bodyId = op.body_id ?? "Body";
+        for (const m of data.matches) {
+          if (m.semantic_id && m.fingerprint) {
+            const existing = (doc.geometryRefs ?? []).find((g) => g.id === m.semantic_id);
+            if (!existing) {
+              const ref: GeometryRef = {
+                id: m.semantic_id,
+                entity: m.entity,
+                bodyId,
+                selector: op.selector ?? selEntity,
+                fingerprint: m.fingerprint,
+                lastRevisionId: doc.currentRevisionId,
+              };
+              if (!doc.geometryRefs) doc.geometryRefs = [];
+              doc.geometryRefs.push(ref);
+            }
+          }
+        }
+      }
       return { ok: true, operation: op.op, data };
     }
     case "inspect_faces":
