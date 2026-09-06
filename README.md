@@ -18,10 +18,12 @@ inspecting, validating and exporting authoritative CAD geometry across
 interchangeable CAD backends. Callers request `create_hole` — never
 `PartDesign::Hole`. No transport owns the model; one canonical service does.
 
-## Verified end-to-end proof
+## Verified client evidence
 
-As of **September 6, 2026**, the published client path that has been proven
-end-to-end on physical hardware is:
+As of **September 6, 2026**, two agent/client paths have published Battenmark
+proof rather than being treated only as compatibility targets.
+
+### ChatGPT Work on macOS — physical-output proof
 
 ```text
 ChatGPT Work on macOS
@@ -45,9 +47,29 @@ That path has been exercised with real geometry creation, parametric rebuilds,
 worker restart/recovery, export, validation, and a successfully printed
 **60 × 25 × 4 mm calibration coupon with nominal 3 / 4 / 5 mm through-holes**.
 
-Battenmark is intentionally provider-neutral, but names of other LLM clients or
-providers should be treated as compatibility targets unless a separate
-end-to-end Battenmark validation is published for them.
+### Claude via MCP — end-to-end CAD workflow proof
+
+Claude has also been validated through Battenmark's MCP surface into the same
+authoritative FreeCAD/OpenCascade backend.
+
+A tiny interoperability proof discovered **75 tools**, created a
+**20 × 15 × 5 mm** solid, rebuilt it as **1 valid solid / 1,500 mm³**, and
+cleaned up without direct FreeCAD bypass.
+
+Claude then completed a **50-revision two-piece Orange Pi 4 Pro enclosure**
+workflow entirely through Battenmark. The execution, rebuild/inspection,
+persistence and export path worked, and the exported 3MF contains exactly two
+manifold objects matching the current CAD mesh to floating-point tolerance.
+The enclosure benchmark is deliberately classified **PARTIAL /
+CAD_CORRECTION_REQUIRED** because the lid currently uses a solid plug instead of
+a hollow friction rim and its vent slots are blind rather than through-cut.
+
+See [client validation evidence](docs/CLIENT_VALIDATION.md) and the
+[Orange Pi hard benchmark audit](docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md).
+
+Battenmark is intentionally provider-neutral. Other LLM clients/providers should
+remain compatibility targets until equivalent evidence is published for them.
+Protocol discovery alone is not treated as proof of autonomous CAD quality.
 
 ## Architecture
 
@@ -157,6 +179,9 @@ This is pre-1.0 alpha software; APIs may change.
 - Imported STEP is geometry import — not automatic parametric reconstruction
 - Native FCStd documents keep historical PartDesign feature shapes; Battenmark
   measures the final Body Tip (summing historical solids double-counts)
+- Bodies carrying non-manifold-edge warnings can produce **unreliable B-rep volume
+  integrals**; benchmark evidence should cross-check mesh/analytical volume rather
+  than treating a raw OpenCascade volume number as ground truth in that condition
 - One serialized FreeCAD worker (no pooling)
 - Preview rendering is JSCAD, not OCC hidden-line
 - Complete topological naming is not solved; persistent `gref` mitigates it
@@ -170,7 +195,7 @@ Full list: [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 | Architecture & foundation | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/FOUNDATION.md](docs/FOUNDATION.md) |
 | Operation contract & schema | [docs/CONTRACT.md](docs/CONTRACT.md) · [docs/VERSIONING.md](docs/VERSIONING.md) |
 | Backends & kernels | [docs/BACKENDS.md](docs/BACKENDS.md) · [docs/FREECAD.md](docs/FREECAD.md) · [docs/JSCAD.md](docs/JSCAD.md) · [docs/KERNEL.md](docs/KERNEL.md) |
-| Transports | [docs/MCP.md](docs/MCP.md) · [docs/HTTP.md](docs/HTTP.md) · [docs/CLI.md](docs/CLI.md) · [docs/PYTHON.md](docs/PYTHON.md) · [docs/CLIENTS.md](docs/CLIENTS.md) |
+| Transports / clients | [docs/MCP.md](docs/MCP.md) · [docs/HTTP.md](docs/HTTP.md) · [docs/CLI.md](docs/CLI.md) · [docs/PYTHON.md](docs/PYTHON.md) · [docs/CLIENTS.md](docs/CLIENTS.md) · [docs/CLIENT_VALIDATION.md](docs/CLIENT_VALIDATION.md) |
 | Service & persistence | [docs/SERVICE.md](docs/SERVICE.md) · [docs/AUTH.md](docs/AUTH.md) |
 | Import / export & preview | [docs/IMPORT.md](docs/IMPORT.md) · [docs/PREVIEW.md](docs/PREVIEW.md) |
 | Platforms & validation | [docs/MACOS.md](docs/MACOS.md) · [docs/LINUX.md](docs/LINUX.md) · [docs/RELEASE.md](docs/RELEASE.md) |
