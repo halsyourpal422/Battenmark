@@ -158,7 +158,7 @@ This SHA passed:
 - FreeCAD discovery and validation
 - TypeScript strict check
 - Full test suite (kernel-free + FreeCAD + gref + transport parity)
-- User Trial 001 (42/42 HTTP operations, USB + microSD holder, 24,047 mm³)
+- User Trial 001 (42/42 HTTP operations, USB + microSD holder, 305,698.91 mm³)
 - Repository hygiene & legal/release docs review
 - Five canonical demos (A–E)
 
@@ -166,19 +166,17 @@ This SHA passed:
 
 | Demo | Description | Result | Evidence |
 |------|-------------|--------|----------|
-| **A** | Prompt → L-bracket with holes, fillet | PASS (24,047 mm³) | [demo-a-prompt-part](Demo_Captures/candidate-31ee9369/demo-a-prompt-part/) |
-| **B** | STEP import → inspect → modify → export | PASS (22,847 mm³) | [demo-b-import-inspect](Demo_Captures/candidate-31ee9369/demo-b-import-inspect/) |
-| **C** | Iterative correction (spacing change) | PASS (before/after) | [demo-c-iterative](Demo_Captures/candidate-31ee9369/demo-c-iterative/) |
-| **D** | Assembly + DOF diagnostics | PARTIAL* | [demo-d-assembly](Demo_Captures/candidate-31ee9369/demo-d-assembly/) |
-| **E** | Same surface via 3 selector paths | PASS (3× convergence) | [demo-e-paths](Demo_Captures/candidate-31ee9369/demo-e-paths/) |
+| **A** | Prompt → L-bracket with holes, fillet | PASS (24,046.95 mm³) | [docs/demos/demo-a-l-bracket.md](docs/demos/demo-a-l-bracket.md) |
+| **B** | STEP import → inspect → modify → export | PASS (22,846.95 mm³) | [docs/demos/demo-b-import-modify.md](docs/demos/demo-b-import-modify.md) |
+| **C** | Iterative correction (spacing change) | PASS (before/after) | [docs/demos/demo-c-iterative.md](docs/demos/demo-c-iterative.md) |
+| **D** | Assembly + DOF diagnostics | PASS — mixed transport* | [docs/demos/demo-d-assembly.md](docs/demos/demo-d-assembly.md) |
+| **E** | Same surface via 3 selector paths | PASS (3× convergence) | [docs/demos/demo-e-selector-paths.md](docs/demos/demo-e-selector-paths.md) |
 
-*Demo D: Multi-body geometry/export works via HTTP; full assembly constraints/DOF requires MCP transport.
+*Demo D: Body/multi-body geometry and export were performed over HTTP; full assembly constraints and DOF diagnostics used the MCP transport. The demo met its designed acceptance criteria by intentionally using MCP for the assembly portion.
 
-Each demo folder contains: `prompt.txt`, `environment.txt`, `steps.md`, `operation-trace.json`, `validation-result.json`, `dimensions-volume.txt`, 4 preview PNGs (isometric/front/top/right), FCStd, STEP, STL exports, and `result.md`.
+**User Trial 001:** [docs/demos/user-trial-001.md](docs/demos/user-trial-001.md)
 
-**Full evidence package (77 files):** `Demo_Captures/candidate-31ee9369/`
-
-**User Trial 001:** `user-trial-001/31ee9369fe84b35d83932e86bf9fd0b64564aedd/`
+Each demo summary page contains: purpose, prompt summary, result, validation, exact candidate SHA, and a link to the full Drive evidence archive.
 
 ### Media Assets
 
