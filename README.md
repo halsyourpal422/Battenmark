@@ -149,6 +149,53 @@ version `0.5.6` intentionally differs from the release tag; see
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 Code of Conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
+## Phase 8B Release Candidate Evidence
+
+**Qualified candidate SHA:** `31ee9369fe84b35d83932e86bf9fd0b64564aedd`
+
+This SHA passed:
+- All 9/9 CI jobs (exact-main matrix)
+- FreeCAD discovery and validation
+- TypeScript strict check
+- Full test suite (kernel-free + FreeCAD + gref + transport parity)
+- User Trial 001 (42/42 HTTP operations, USB + microSD holder, 24,047 mm³)
+- Repository hygiene & legal/release docs review
+- Five canonical demos (A–E)
+
+### Five Canonical Demos
+
+| Demo | Description | Result | Evidence |
+|------|-------------|--------|----------|
+| **A** | Prompt → L-bracket with holes, fillet | PASS (24,047 mm³) | [demo-a-prompt-part](Demo_Captures/candidate-31ee9369/demo-a-prompt-part/) |
+| **B** | STEP import → inspect → modify → export | PASS (22,847 mm³) | [demo-b-import-inspect](Demo_Captures/candidate-31ee9369/demo-b-import-inspect/) |
+| **C** | Iterative correction (spacing change) | PASS (before/after) | [demo-c-iterative](Demo_Captures/candidate-31ee9369/demo-c-iterative/) |
+| **D** | Assembly + DOF diagnostics | PARTIAL* | [demo-d-assembly](Demo_Captures/candidate-31ee9369/demo-d-assembly/) |
+| **E** | Same surface via 3 selector paths | PASS (3× convergence) | [demo-e-paths](Demo_Captures/candidate-31ee9369/demo-e-paths/) |
+
+*Demo D: Multi-body geometry/export works via HTTP; full assembly constraints/DOF requires MCP transport.
+
+Each demo folder contains: `prompt.txt`, `environment.txt`, `steps.md`, `operation-trace.json`, `validation-result.json`, `dimensions-volume.txt`, 4 preview PNGs (isometric/front/top/right), FCStd, STEP, STL exports, and `result.md`.
+
+**Full evidence package (77 files):** `Demo_Captures/candidate-31ee9369/`
+
+**User Trial 001:** `user-trial-001/31ee9369fe84b35d83932e86bf9fd0b64564aedd/`
+
+### Media Assets
+
+| Asset | Description |
+|-------|-------------|
+| [GitHub Hero](media/github-hero/github-hero.png) | 1280×640 collage of all demo previews |
+| [Social Preview](media/social-preview/social-preview.png) | 1280×640 with branding + SHA |
+| [Architecture Diagram](media/architecture/architecture.mmd) | Mermaid flowchart of Battenmark core/transports/backends |
+| [Demo Video Script](media/demo-video-script.md) | 45–60s shot list + production notes |
+
+### Key Technical Findings (Preserved)
+
+- **Demo A**: Face selector ambiguity after boolean union is avoided by creating features on individual bodies *before* union.
+- **Demo B**: STEP import requires workspace path (not raw base64); boolean operation is `boolean_cut`.
+- **Demo D**: Full assembly constraint/DOF path uses MCP; HTTP supports body/multi-body geometry/export only.
+- **Demo E**: Three resolution paths (face enum, `centroid_near` spatial selector, `created_by` feature reference) converge on identical geometry.
+
 ## License
 
 Apache-2.0 for this repository. FreeCAD/OpenCascade are invoked as a separate

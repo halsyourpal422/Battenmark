@@ -1,0 +1,55 @@
+```mermaid
+flowchart TD
+    %% Backend Neutral Core
+    subgraph Core["Battenmark Core (Backend-Neutral)"]
+        direction TB
+        TypedOps["Typed Operations / CAD IR\n(schema v2)"] --> Registry["Backend Registry\n(open IDs, dynamic roles)"]
+        Registry --> Expressions["Expressions"]
+        Registry --> Selectors["Selectors / gref"]
+        Registry --> Persistence["Persistence Layer"]
+    end
+
+    %% Transports
+    subgraph Transports["Transports"]
+        direction LR
+        HTTP["HTTP Transport"] --> Core
+        MCP["MCP Transport"] --> Core
+        CLI["CLI Transport"] --> Core
+        Python["Python Client\n(thin HTTP)"] --> Core
+    end
+
+    %% Backends
+    subgraph Backends["Authoritative & Preview Backends"]
+        direction TB
+        FreeCAD["FreeCAD / OpenCascade\n(authoritative B-rep)"] --> Core
+        JSCAD["JSCAD CSG\n(preview only)"] --> Core
+    end
+
+    %% Assemblies
+    subgraph Assemblies["Assembly Semantics"]
+        direction TB
+        AssemSolver["Assembly Solver\n(constraints, DOF)"] --> Core
+        AssemDef["Assembly Definitions\n(instances, transforms)"] --> Core
+    end
+
+    %% External Interfaces
+    subgraph External["External Interfaces"]
+        direction LR
+        LLMs["LLM Agents\n(Claude, GPT, etc)"] -->|MCP/HTTP| Transports
+        IDEs["IDE Extensions"] -->|MCP/HTTP| Transports
+        Scripts["Custom Scripts"] -->|MCP/HTTP| Transports
+    end
+
+    %% Styling
+    classDef core fill:#f9fafb,stroke:#374151,stroke-width:1px;
+    classDef transport fill:#dbeafe,stroke:#2563eb,stroke-width:1px;
+    classDef backend fill:#fee2e2,stroke:#dc2626,stroke-width:1px;
+    classDef assembly fill:#f0fdf4,stroke:#16a34a,stroke-width:1px;
+    classDef external fill:#fefce8,stroke:#a16207,stroke-width:1px;
+    
+    class Core core;
+    class Transports transport;
+    class Backends backend;
+    class Assemblies assembly;
+    class External external;
+```
