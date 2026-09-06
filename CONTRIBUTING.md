@@ -1,8 +1,11 @@
 # Contributing
 
-This repository is a **CAD service**, not a chat-bot wrapper and not a FreeCAD GUI plugin.
+Battenmark is a **backend-neutral CAD service**, not a chatbot wrapper and not a FreeCAD GUI plugin.
 
-Working identifier: `cad-service`. Do not treat "AgentCAD" as a final product name.
+Public branding is **Battenmark**. Historical engineering identifiers such as
+`AgentCadService`, `agentcad_schema_version`, `AGENTCAD_*`, `agentcad`, and
+`agentcad-mcp` are retained as compatibility surfaces; do not introduce a
+second public product name for them.
 
 ## Before you start
 
@@ -44,6 +47,7 @@ Windows is unsupported/unverified.
 ## Tests you must not skip
 
 Geometry changes: `npm run test:cad`, `npm run test:phase5`, `npm run test:conformance`.
+Persistent geometry-reference changes: `npm run test:gref`.
 Service/transport changes: `npm run test:phase3`, `npm run test:schema`.
 Discovery changes: `npm run test:discover`.
 
@@ -51,6 +55,7 @@ Discovery changes: `npm run test:discover`.
 
 - Keep the operation schema backend-neutral.
 - If you add a capability, advertise it in `src/cad/backend/capabilities.ts` and fail with `BACKEND_UNSUPPORTED` when it is false.
-- Do not claim circular patterns, assemblies, helical threads, or Windows support.
-- Do not commit secrets, local FreeCAD user homes, or `.FCBak` files.
-- Update `CHANGELOG.md`.
+- Do not claim circular patterns, helical solid threads, nested assemblies, assembly patterns, advanced joint types, or Windows support until those capabilities are actually implemented and validated.
+- Assemblies are supported only for the currently documented rigid subset; keep claims aligned with `docs/ASSEMBLIES.md` and `docs/LIMITATIONS.md`.
+- Do not commit secrets, local FreeCAD user homes, personal filesystem paths, or `.FCBak` files.
+- Update `CHANGELOG.md` when the change is user-visible.
