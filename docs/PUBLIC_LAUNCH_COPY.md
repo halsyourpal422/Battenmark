@@ -1,8 +1,7 @@
 # Battenmark Public Launch Copy
 
-**Hold these drafts until the P0 promotion-readiness checklist is complete.**
-They are intentionally evidence-first and avoid claiming unvalidated client
-compatibility or treating valid geometry as proof of perfect design fidelity.
+These drafts are intentionally evidence-first. They distinguish client
+interoperability, CAD execution, specification fidelity and export fidelity.
 
 ## Show HN
 
@@ -21,30 +20,35 @@ FreeCAD/OpenCascade is the authoritative B-rep backend today; JSCAD supports
 preview/envelope workflows. The same canonical service is exposed over MCP,
 HTTP, CLI and Python surfaces.
 
-The client path we have actually proven end-to-end so far is ChatGPT Work on an
-Apple Silicon Mac → Battenmark → FreeCAD 1.1.3/OpenCascade. That path has
-produced real parametric CAD, survived worker restart/recovery, exported
-FCStd/STEP/STL/3MF, and produced a physical 3D print.
+The strongest current proof is a corrected two-piece Orange Pi 4 Pro enclosure.
+The workflow stayed inside Battenmark, went through FreeCAD 1.1.3/OpenCascade,
+and ended with fresh FCStd/STEP/STL/3MF exports plus persistence/reopen proof.
 
-We also ran a harder two-piece Orange Pi 4 Pro enclosure benchmark entirely
-through Battenmark. The infrastructure side passed: authoritative rebuild,
-separate valid base/lid solids, multi-format export and persistence across a
-50-revision session. The overall benchmark is intentionally published as
-**PARTIAL**, because several modeling/specification-fidelity issues remained.
-The failure details are in the repo rather than being hidden behind a geometry-
-validity check.
+The final lid has a 90.6×57.6 mm hollow friction rim with an 85.8×52.8 mm opening
+and 2.4 mm walls, plus six true 2.4×55 mm through-vents. Independent parsing of
+the final 3MF found exactly two watertight manifold objects. The lid mesh volume
+is 13,138.560000 mm³, matching the corrected analytical design of 13,138.56
+mm³ essentially exactly. Combined mesh volume is 41,281.246683 mm³, only
+0.109317 mm³ / 0.000265% from Battenmark's export-volume result.
 
-We are deliberately not claiming other LLM clients are validated through
-Battenmark until we have equivalent evidence.
+The benchmark did not begin as a success. Claude completed the original
+50-revision Battenmark-only workflow, which exposed a solid lid plug and blind
+vents. Those failures were published as PARTIAL instead of being hidden. The
+same persistent project was then reopened and corrected through Battenmark in
+ChatGPT Work, producing the final PASS.
 
-The repo also includes release/evaluation evidence, canonical demos, assembly
-support for the current rigid subset, selector/gref work, backend capability
-discovery and documented limitations.
+Battenmark also has a physical-output proof: ChatGPT Work created and exported a
+60×25×4 mm calibration coupon with nominal 3/4/5 mm holes that was physically
+printed.
 
-I would especially value feedback from FreeCAD developers, CAD automation
-users, mechanical engineers and people building agent toolchains. Reproducible
-failure cases are useful too — the goal is to turn them into benchmark material
-rather than hide them.
+One real platform defect remains from the enclosure correction: editing an
+existing pocket's depth could update metadata without reliably rebuilding the
+worker geometry. Recreating the stale pocket through Battenmark fixed the model;
+that synchronization issue is being tracked separately.
+
+I would especially value feedback from FreeCAD developers, CAD automation users,
+mechanical engineers and people building agent toolchains. Reproducible failures
+are useful benchmark material.
 
 GitHub: https://github.com/halsyourpal422/Battenmark
 
@@ -52,7 +56,7 @@ GitHub: https://github.com/halsyourpal422/Battenmark
 
 ### Title
 
-Battenmark: an open-source, typed agent interface to FreeCAD/OpenCascade — looking for technical testers
+Battenmark: an open-source typed agent interface to FreeCAD/OpenCascade — corrected Orange Pi benchmark PASS
 
 ### Body
 
@@ -65,26 +69,24 @@ Battenmark sits between agents/software clients and the CAD backend, providing
 typed operations, rebuild/validation, selectors, import/export, persistence and
 multiple transports.
 
-The end-to-end path validated on physical hardware so far is ChatGPT Work on
-Apple Silicon macOS → Battenmark → FreeCAD 1.1.3/OpenCascade. We have exercised
-real geometry creation, parametric rebuilds, recovery after worker restart,
-FCStd/STEP/STL/3MF export and a successful physical print.
+Claude first completed a 50-revision two-piece Orange Pi 4 Pro enclosure workflow
+through Battenmark only. That run was intentionally published as PARTIAL because
+it exposed a solid lid plug and blind ventilation slots.
 
-A harder two-piece Orange Pi 4 Pro enclosure run then exercised separate base
-and lid bodies, sketches, pads, pockets, booleans, fillets, ventilation,
-rebuild/inspection, exports and persistence across 50 revisions. The final
-FreeCAD/OpenCascade solids were valid and the infrastructure path passed, but
-we classify the overall design result as **PARTIAL** because the run exposed
-real specification/modeling-semantic problems. Those failures are documented
-publicly as benchmark evidence.
+The same Battenmark project was later reopened and corrected. The final model now
+has a hollow 2.4 mm perimeter friction rim and six true through-vents. Fresh
+FCStd/STEP/STL/3MF exports were generated through Battenmark, and independent 3MF
+inspection found exactly two watertight manifold objects with no stale or phantom
+geometry. The corrected lid volume matches its analytical design essentially
+exactly, and persistence/reopen passed through a fresh stdio MCP process.
+
+The full benchmark now passes, while the original failure history remains in the
+repo. The correction also exposed a worker synchronization bug involving edited
+pocket depth, which is being kept as a regression target rather than hidden.
 
 I am specifically interested in FreeCAD-oriented criticism: topology/selector
 failure cases, model-history assumptions, import/export edge cases, assembly
-limitations, and tasks that would expose places where the abstraction is wrong.
-
-The project is pre-1.0 alpha, and the limitations are documented rather than
-hidden. If anyone wants to try a reproducible mechanical task, I would be glad
-to collect the result — success or failure — as public benchmark evidence.
+limitations and tasks that expose places where the abstraction is wrong.
 
 GitHub: https://github.com/halsyourpal422/Battenmark
 
@@ -92,32 +94,26 @@ GitHub: https://github.com/halsyourpal422/Battenmark
 
 ### Title
 
-I built an open-source layer that lets AI agents create and validate real FreeCAD/OpenCascade models
+An AI-agent CAD benchmark that went PARTIAL → corrected PASS in real FreeCAD/OpenCascade
 
 ### Body
 
-Battenmark is an experiment in treating CAD as an agent-accessible engineering
-service rather than asking a model to write ad-hoc CAD scripts.
+Battenmark treats CAD as an agent-accessible engineering service rather than
+asking a model to write ad-hoc CAD scripts.
 
-The agent sends typed operations such as creating solids, holes, fillets,
-patterns, selectors and assembly constraints. Battenmark owns the project state,
-rebuilds the model, validates geometry and exports normal CAD formats. FreeCAD
-and OpenCascade provide the authoritative B-rep backend.
+The interesting part of the latest benchmark is the failure/correction loop. A
+two-piece Orange Pi 4 Pro enclosure initially produced valid exportable geometry,
+but the lid design was wrong: it used a solid plug and blind vent slots. That run
+was labeled PARTIAL even though the geometry rebuilt and exported.
 
-The current physical proof is ChatGPT Work on macOS using Battenmark to build
-and validate a real FreeCAD model, export FCStd/STEP/STL/3MF and produce a
-physical print.
+The same persistent Battenmark project was then reopened and corrected entirely
+through Battenmark. Final checks verified the hollow perimeter rim, six true
+through-vents, two watertight 3MF objects, analytical/mesh volume agreement,
+fresh FCStd/STEP/STL/3MF exports and persistence/reopen. The overall benchmark is
+now PASS.
 
-We then pushed the system with a two-piece Orange Pi 4 Pro enclosure. It
-completed through Battenmark without direct FreeCAD bypass, generated separate
-valid base/lid solids, exported manufacturing/interchange files and survived
-50 revisions plus reopen/persistence. I am **not** calling that design a full
-pass: the benchmark is PARTIAL because several geometry-operation semantics and
-spec-fidelity problems remained. That distinction — valid B-rep versus correct
-design — is one of the things the benchmark is meant to measure.
-
-I am looking for tasks that are difficult enough to reveal abstraction or
-reliability problems, not just visually impressive demos.
+That distinction — valid B-rep versus correct design versus faithful export — is
+one of the things Battenmark's benchmark format is intended to measure.
 
 GitHub: https://github.com/halsyourpal422/Battenmark
 
@@ -125,56 +121,50 @@ GitHub: https://github.com/halsyourpal422/Battenmark
 
 ### Title
 
-Prompt → real FreeCAD model → STL/3MF → physical print, using an open-source CAD agent layer
+Prompt → corrected FreeCAD enclosure → 2-object watertight 3MF, through an open-source AI CAD layer
 
 ### Body
 
-I have been testing an open-source project called Battenmark that lets an AI
-agent work through a typed CAD interface backed by FreeCAD/OpenCascade.
+Battenmark lets AI agents work through a typed CAD interface backed by
+FreeCAD/OpenCascade, with the goal of producing normal editable/validatable CAD
+rather than only text-to-3D meshes.
 
-The point is to generate real editable/validatable CAD, not just a mesh from a
-text-to-3D model. In the physical-print proof, ChatGPT Work used Battenmark on
-my Mac to create a 60 × 25 × 4 mm calibration coupon with nominal 3/4/5 mm
-through-holes, rebuild and validate it, export normal CAD/print formats, and
-then I physically printed it.
+The latest hard test is a two-piece Orange Pi 4 Pro enclosure. The first version
+was not good enough to print: the lid had a solid plug and blind vents. That was
+published as a PARTIAL result.
 
-A harder two-piece Orange Pi 4 Pro enclosure benchmark has also been completed.
-The Battenmark/FreeCAD execution, rebuild, valid solids, exports and persistence
-worked, but the design result is publicly labeled **PARTIAL** because some
-requirements and modeling semantics were not reproduced correctly. I think
-publishing those misses is more useful than showing only successful renders.
+The same model was then corrected through Battenmark. The final lid now has a
+2.4 mm hollow friction rim and six through-vents. The exported 3MF contains
+exactly two watertight manifold objects, and the corrected lid mesh volume matches
+its analytical design essentially exactly. Base and lid are ready for slicer
+inspection; the intended print orientations are base floor-down/open-rim-up and
+lid cap-down.
 
-I am interested in the kinds of practical parts people repeatedly need but hate
-modeling from scratch — brackets, adapters, electronics enclosures, mounts,
-fixtures, spacers, etc. Those make better benchmark tasks than decorative demo
-objects because dimensions and fit actually matter.
+Battenmark also has an earlier physical-print proof from a 60×25×4 mm calibration
+coupon.
 
 GitHub: https://github.com/halsyourpal422/Battenmark
 
 ## Early tester invitation
 
-### Short version
-
 Battenmark is looking for a small first group of technical testers. Give it a
 real CAD task, preserve the exact prompt/task, and report whether the model
 rebuilt, validated **and matched the requested specification**. Failed tasks are
-useful — they become benchmark cases. Current authoritative backend:
-FreeCAD/OpenCascade. Current published end-to-end client proof: ChatGPT Work on
-macOS.
+useful — they become benchmark cases.
 
-### What to ask testers to return
+Please return:
 
 - task/prompt;
-- Battenmark commit/version;
+- Battenmark commit/version or project revision IDs;
 - client/runtime;
 - FreeCAD version;
 - number of corrective turns;
 - rebuild result;
 - geometry validation result;
-- dimensional/specification fidelity result;
+- dimensional/specification-fidelity result;
 - requested export result;
-- screenshots or files where shareable;
-- what failed or surprised them.
+- screenshots/files where shareable;
+- what failed or surprised you.
 
 ## One-line descriptions
 
