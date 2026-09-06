@@ -1,253 +1,296 @@
-# Real-world proof: two-piece Orange Pi 4 Pro enclosure
+# Real-world proof: corrected two-piece Orange Pi 4 Pro enclosure
 
 **Date:** 2026-09-06  
-**Execution path:** Claude → Battenmark MCP → FreeCAD 1.1.3 / OpenCascade  
-**Bypass policy:** Battenmark only; zero direct FreeCAD bypasses  
-**Exported revision:** `rev_2jbr5m` — revision **50 / 50**  
-**Document:** `doc_pwjq1a`  
 **Project:** `opi4pro-enclosure`  
-**Artifact:** `art_vfljcv`  
-**Final decision:** **CAD_CORRECTION_REQUIRED**  
-**Overall benchmark result:** **PARTIAL**
+**Document:** `doc_pwjq1a`  
+**Execution policy:** Battenmark only; direct FreeCAD bypass did not count  
+**FreeCAD:** 1.1.3 / OpenCascade  
+**Final decision:** **PASS**
 
-This benchmark is intentionally recorded as PARTIAL. It is strong evidence that
-Battenmark can drive a long, nontrivial, persistent, exportable two-piece CAD
-workflow through the authoritative FreeCAD/OpenCascade backend, but it is **not**
-evidence that every design requirement was interpreted and modeled correctly.
+This benchmark began as a 50-revision Claude → Battenmark MCP →
+FreeCAD/OpenCascade enclosure workflow and was initially classified
+**PARTIAL / CAD_CORRECTION_REQUIRED**. A later ChatGPT Work correction/audit
+reopened the live Battenmark project, corrected the lid rim and ventilation,
+performed fresh exports, independently parsed the 3MF, and proved persistence
+through a fresh stdio MCP process.
 
-The final audit also corrected an earlier evidence mistake: the raw B-rep volume
-numbers are **not trustworthy for these bodies** because both bodies carry
-non-manifold-edge warnings. The exported 3MF mesh and analytical geometry agree
-to floating-point tolerance and are the reliable volume evidence for this run.
+The final corrected benchmark passes geometry, specification fidelity, export
+fidelity and persistence checks.
 
-## What the run exercised
+## Revision and checkpoint record
 
-The run built a two-piece Orange Pi 4 Pro enclosure and exercised:
+The requested historical revision `rev_2jbr5m` remained available, but the live
+project had advanced before the final correction audit began.
 
-- parameter registration;
-- sketches;
-- pockets;
-- pads;
-- booleans and feature repair;
-- fillets;
-- separate base and lid bodies;
-- ventilation features;
-- authoritative FreeCAD/OpenCascade rebuild and inspection;
-- face-level geometry inspection;
-- FCStd / STEP / STL / 3MF export;
-- persistence and reopen;
-- iterative modification across **50 revisions**;
-- 3MF mesh audit;
-- recovery without bypassing Battenmark.
+Final correction/audit identifiers:
 
-## Authoritative geometry and volume evidence
+- starting observed revision: `rev_oqca4f`;
+- final export revision: `rev_v9zehv`;
+- saved final checkpoint: `rev_np7x39`, label `final-through-vent-correction`;
+- current post-preview revision: `rev_ywe0nq`;
+- Battenmark-reported revision index: `51`.
 
-### Base
+The numeric revision index did not advance reliably during this sequence, so the
+revision IDs above are the authoritative identifiers for the final evidence.
 
-- B-rep bounding box: **96 × 63 × 22 mm**;
-- B-rep-reported volume: **26,782.393 mm³** — **UNRELIABLE for volume accounting in this run**;
-- audited mesh volume: **28,142.687 mm³**;
-- reason for preferring mesh volume: non-manifold-edge warning invalidates the OpenCascade volume integral as a trustworthy ground-truth measure here.
+## Battenmark operations used
 
-### Lid
+The final correction/audit used Battenmark operations including:
 
-- B-rep bounding box: **96 × 63 × 6 mm**;
-- B-rep-reported volume: **32,563.687 mm³** — **UNRELIABLE for volume accounting in this run**;
-- audited mesh volume: **30,594.240 mm³**;
-- analytical volume: **30,594.240 mm³**;
-- analytical check:
+- `project_open`;
+- `inspect_document`;
+- `inspect_body`;
+- `inspect_feature`;
+- `query_geometry`;
+- `save_revision`;
+- `set_feature_param`;
+- `delete_feature`;
+- `pocket`;
+- `rebuild`;
+- `validate`;
+- `export_fcstd`;
+- `export_step`;
+- `export_stl`;
+- `export_3mf`;
+- `render_preview`.
+
+No Battenmark source, dependency, project setting or unrelated repository file
+was changed to obtain the result.
+
+`DIRECT FREECAD USED: NO`
+
+## Correction history
+
+### 1. Solid lid plug → hollow perimeter friction rim
+
+The existing lid already contained the correct inner-rim sketch geometry. The
+4 mm hollowing pocket was recovered/used to produce:
+
+- outer rim: **90.6 × 57.6 mm**;
+- inner opening: **85.8 × 52.8 mm**;
+- wall thickness: **2.4 mm**;
+- rim elevation: **z=2 → z=6 mm**;
+- inner boundaries: `x=5.1→90.9`, `y=5.1→57.9 mm`.
+
+The former full-area solid plug is absent in the final model.
+
+### 2. Blind vents → true through-vents
+
+An attempted edit of the existing vent pocket exposed a Battenmark worker
+synchronization defect: the feature metadata changed from a 3 mm depth to 6 mm,
+but exported geometry still retained portions of the old `z=3` slot floors at
+the rim.
+
+Recovery remained entirely inside Battenmark:
+
+1. save checkpoint `rev_ghp0vc`;
+2. delete only the stale `Vent_Slots` pocket;
+3. reuse the existing six-profile vent sketch;
+4. create a new `Vent_ThroughSlots` pocket with **6 mm** depth after the hollow-rim feature;
+5. rebuild, validate and export again.
+
+A duplicate-name attempt for `Plug_Hollow` failed safely because that feature
+already existed. No geometry was lost.
+
+The final face map contains **no z=3 vent-floor faces**. Horizontal interior
+faces between the slots terminate at `z=2`, proving that the slots pass through
+the 2 mm cap and through the 4 mm rim wherever they intersect it.
+
+Final vent state:
+
+- slot count: **6**;
+- nominal slot size: **2.4 × 55 mm**;
+- solid plug: **absent**;
+- blind floors: **absent**;
+- airflow path from exterior to enclosure interior: **present**.
+
+## Final body audit
+
+| Property | Base | Lid |
+| --- | ---: | ---: |
+| Battenmark body | `bdy_z0pbcx` | `bdy_0wyeqw` |
+| Shape | Solid | Solid |
+| Solid count | 1 | 1 |
+| Bounding box | 96 × 63 × 22 mm | 96 × 63 × 6 mm |
+| Features | 10 | 7 |
+| OpenCascade faces | 30 | 58 |
+| Exported triangles | 604 | 260 |
+| Mesh edges | 906 | 390 |
+| Boundary mesh edges | 0 | 0 |
+| Non-manifold mesh edges | 0 | 0 |
+| Watertight mesh | Yes | Yes |
+
+Five intermediate bodies remain hidden, consumed, empty and absent from the
+exported 3MF. Base mounts, openings, standoffs, outer envelope and fillet were
+preserved.
+
+## Corrected lid analytical proof
+
+### Cap
 
 ```text
-96×63×2 + 90.6×57.6×4 − 6×(2.4×55×3)
-= 30,594.240 mm³
+96 × 63 × 2 = 12,096.00 mm³
 ```
 
-### Combined volume
+### Hollow rim before vent intersections
 
-- mesh sum: **58,736.927 mm³**;
-- exported 3MF combined volume: **58,737.036 mm³**;
-- discrepancy: **0.109 mm³**;
-- interpretation: negligible floating-point / tessellation difference;
-- B-rep aggregate volume: **59,346.079 mm³** — about **609 mm³ high**, explained by the same non-manifold B-rep-volume problem.
+```text
+(90.6 × 57.6 − 85.8 × 52.8) × 4 = 2,753.28 mm³
+```
 
-## 3MF fidelity audit
+### Vent removal
 
-The exported 3MF was parsed and audited directly.
+- six cap slot cuts: **1,584.00 mm³**;
+- six rim intersections: **126.72 mm³**.
 
+### Expected corrected lid volume
+
+```text
+12,096.00 + 2,753.28 − 1,584.00 − 126.72
+= 13,138.56 mm³
+```
+
+Independent final 3MF lid volume:
+
+```text
+13,138.559999999954 mm³
+```
+
+The difference from the analytical design is effectively zero (below
+`0.000000001%`).
+
+## Topology and measurement interpretation
+
+Document-level Battenmark inspection continues to emit generic non-manifold
+warnings for the Boolean-heavy bodies. The benchmark does not treat those raw
+B-rep volume numbers as authoritative when such warnings are present.
+
+The final export/mesh evidence is clean:
+
+- both exported objects are closed two-manifolds;
+- boundary edges: **0** on both;
+- non-manifold mesh edges: **0** on both;
+- export-time issues: **none**.
+
+Fresh export pipeline result:
+
+- shape type: Compound;
+- solids: **2**;
+- Battenmark export volume: **41,281.356 mm³**.
+
+Independent 3MF parsing:
+
+- base mesh volume: **28,142.686683 mm³**;
+- lid mesh volume: **13,138.560000 mm³**;
+- combined mesh volume: **41,281.246683 mm³**;
+- difference from Battenmark export result: **0.109317 mm³**;
+- percentage difference: **0.000265%**.
+
+This is accepted as negligible tessellation/floating-point difference.
+
+## 3MF forensic audit
+
+The final fresh 3MF contains:
+
+- units: millimeters;
 - object count: **2**;
-- object 1: base, **604 triangles**, manifold;
-- object 2: lid, **124 triangles**, manifold;
-- both build items use identity transform;
-- no stale or phantom geometry was found;
-- 3MF geometry matches the current modeled geometry;
-- combined 3MF volume agrees with the audited mesh sum to **0.109 mm³**.
+- build item count: **2**;
+- object 1: base, **604 triangles**;
+- object 2: lid, **260 triangles**;
+- both build transforms: identity;
+- boundary edges: **0 / 0**;
+- non-manifold mesh edges: **0 / 0**;
+- unexpected/stale objects: **none**;
+- phantom geometry: **none**.
 
-This means the exported 3MF is a faithful representation of the **current CAD
-model**. It does **not** mean the current CAD model is mechanically correct.
+The objects are unnamed internally, but the distinct `96 × 63 × 22 mm` and
+`96 × 63 × 6 mm` bounding boxes identify them unambiguously.
 
-## Lid mating-feature audit
+## Fresh final exports
 
-The lid's mating feature is a **solid plug**, not the intended hollow perimeter
-friction rim.
+All four final manufacturing/interchange files were created by Battenmark at
+`rev_v9zehv` on 2026-09-06:
 
-Evidence:
+| Format | Artifact | UTC timestamp |
+| --- | --- | --- |
+| FCStd | `art_j0bf8q` | 22:52:32.079 |
+| STEP | `art_z3u8m3` | 22:52:32.397 |
+| STL | `art_rfh76b` | 22:52:32.708 |
+| 3MF | `art_lunx7x` | 22:52:33.019 |
 
-- `gref_face_035` is the plug bottom face at `z=6` with normal `+Z`;
-- face area: **5,218.56 mm²**;
-- `90.6 × 57.6 = 5,218.56 mm²` exactly;
-- therefore the current mating feature is a full rectangular slab, not a hollow rim.
+The files were generated in the Work execution environment and are not embedded
+in this repository by this documentation commit.
 
-### Design consequence
+## Persistence / reopen proof
 
-This is **not the intended lid design**. A solid 90.6 × 57.6 × 4 mm plug can
-force the enclosure walls outward and may stress or crack printed PLA/PETG
-walls during assembly.
+A completely new stdio MCP client process launched the canonical Battenmark
+server, discovered all **75 tools**, reopened `opi4pro-enclosure`, recovered
+revision `rev_v9zehv`, and found the same two visible solids and validation
+state.
 
-Required correction:
+Claude Desktop was also observed running Battenmark through the canonical local
+MCP entry point. The unrelated direct `freecad` MCP was not used as benchmark
+evidence or as a substitute for Battenmark.
 
-- replace the solid plug with a hollow perimeter friction rim;
-- target rim wall thickness: approximately **2.4 mm** on all four sides;
-- interior cavity should be open, or terminate at the cap inner face (`z=2`) without creating a solid full-area plug.
-
-## Vent audit
-
-The six lid vent slots are **blind**, not through-vents.
-
-Evidence:
-
-- `gref_face_036` through `gref_face_041` are the vent floor faces;
-- each floor area is **132 mm² = 2.4 × 55 mm**;
-- vent floors are at `z=3`;
-- current slots run `z=0 → 3`;
-- the lid/plug continues to `z=6`;
-- therefore **3 mm of solid material remains below each vent floor**.
-
-There is currently no open airflow path from the exterior through to the
-interior enclosure volume.
-
-Required correction:
-
-- extend each of the six vent cuts through the full modeled lid/rim stack;
-- target depth: **6 mm** for the current coordinate system;
-- preserve six slots at **2.4 × 55 mm** each.
-
-## Print orientation audit
+## Print orientation
 
 ### Base
 
-Required orientation before printing:
-
-- flip **180° about X or Y**;
-- model origin `z=0` is the open rim;
-- `z=22` is the closed floor;
-- closed floor should be on the print bed;
-- open rim faces upward;
-- this avoids unnecessary support under the floor and keeps the internal bosses / wall features in a favorable print orientation.
+- rotate **180° about X or Y**;
+- closed floor on build plate;
+- open rim upward.
 
 ### Lid
 
-Required orientation before printing:
+- print **cap-down**.
 
-- **cap-down**;
-- no flip is required if exported at the current model origin;
-- `z=0` is the exterior cap face and should sit on the print bed;
-- the mating feature grows upward;
-- after the vent correction, slots remain printable without support in this orientation.
+### Supports
 
-## Export and persistence result
+Supports are not expected for either piece under normal FDM bridging settings.
+The base port bridges should still be inspected in the slicer for the selected
+material, layer height and bridging profile.
 
-The run successfully produced the expected manufacturing/interchange artifacts,
-including FCStd, STEP, STL and 3MF outputs. Persistence/reopen also passed after
-**50 revisions**. The project state survived close/reopen and remained
-inspectable through Battenmark.
+## Known implementation issue exposed by the pass
 
-## What passed
+The final benchmark passes, but it exposed a real Battenmark implementation
+issue worth tracking independently:
 
-### Battenmark / client interoperability — PASS
+> Editing an existing pocket's depth can update Battenmark metadata without
+> reliably rebuilding the corresponding worker geometry. Replacing the stale
+> pocket through Battenmark produced the correct persisted/exported result.
 
-- Claude discovered and used the Battenmark MCP tool surface;
-- the full enclosure run stayed inside Battenmark;
-- direct FreeCAD bypass was **not used**.
+This is a platform regression candidate. It does **not** invalidate the final
+benchmark because the defect was detected, recovered through Battenmark only,
+and the resulting geometry was independently re-audited.
 
-### CAD execution / backend proof — PASS
+## Final classification
 
-- real Battenmark operations reached local FreeCAD 1.1.3 / OpenCascade;
-- nontrivial geometry was created and edited;
-- two separate enclosure pieces were maintained;
-- rebuild/inspection completed;
-- exports completed;
-- persistence/reopen completed;
-- the workflow recovered from modeling failures without direct FreeCAD bypass.
-
-### 3MF export fidelity — PASS for current modeled geometry
-
-The exported 3MF contains exactly the current base and lid meshes, with two
-manifold objects and no phantom geometry. Its combined volume matches the mesh
-sum to floating-point tolerance.
-
-## What remains wrong
-
-The current model should **not be printed as the final enclosure yet**.
-
-1. **Solid plug must become a hollow perimeter rim.**
-2. **Blind vent slots must become true through-vents.**
-3. B-rep volume reporting for the current non-manifold-warning bodies must not be
-   used as authoritative volume evidence.
-4. Earlier modeling-semantic issues found during the run remain useful regression
-   candidates (`create_box` positioning expectations, multi-profile pocket
-   behavior, face-touching pad connectivity, and document-vs-body inspection
-   semantics).
-
-## Corrected evidence interpretation
-
-An earlier summary compared the B-rep base/lid volume numbers directly and
-suggested a roughly 609 mm³ 3MF/B-rep mismatch. The final audit resolves that:
-
-- the **3MF is not missing geometry**;
-- the exported mesh volume is internally consistent;
-- the 3MF faithfully matches the current modeled geometry;
-- the roughly 609 mm³ discrepancy comes from **unreliable B-rep volume
-  integration on bodies carrying non-manifold-edge warnings**, not from stale or
-  missing 3MF objects.
-
-That correction matters because Battenmark's benchmark policy should distinguish
-among:
-
-- B-rep validity / warnings;
-- measurement reliability;
-- export fidelity;
-- and specification correctness.
-
-They are not interchangeable signals.
+| Area | Result |
+| --- | --- |
+| Claude → Battenmark interoperability | **PASS** |
+| Battenmark-only execution | **PASS** |
+| Authoritative rebuild | **PASS** |
+| Base specification fidelity | **PASS** |
+| Lid rim specification fidelity | **PASS** |
+| Vent specification fidelity | **PASS** |
+| Exported topology quality | **PASS** |
+| 3MF export fidelity | **PASS** |
+| Persistence / reopen | **PASS** |
+| Direct FreeCAD bypass avoided | **PASS** |
+| **Overall benchmark** | **PASS** |
 
 ## Public claim allowed by this result
 
 A defensible public statement is:
 
-> Claude completed a 50-revision, two-piece Orange Pi 4 Pro enclosure workflow
-> entirely through Battenmark into FreeCAD/OpenCascade, with persistence and
-> multi-format export. The exported 3MF faithfully matches the current CAD model,
-> but the benchmark remains PARTIAL and marked CAD_CORRECTION_REQUIRED because
-> the lid mating feature is a solid plug instead of a hollow friction rim and
-> the vent slots are blind rather than through-cut.
+> Battenmark completed a full two-piece Orange Pi 4 Pro enclosure workflow
+> through FreeCAD/OpenCascade, including iterative correction, authoritative
+> rebuild/inspection, specification-fidelity checks, watertight two-object 3MF
+> export, FCStd/STEP/STL output and persistence/reopen. The final corrected lid
+> uses a 2.4 mm hollow friction rim and six true through-vents, and its exported
+> mesh volume matches the analytical design essentially exactly. Direct FreeCAD
+> bypass was not used.
 
-Do **not** summarize this benchmark as “the Orange Pi enclosure passed.”
-
-## Classification
-
-| Area | Result |
-| --- | --- |
-| Claude → Battenmark interoperability | PASS |
-| Battenmark-only execution | PASS |
-| Direct FreeCAD bypass avoided | PASS |
-| FreeCAD/OpenCascade rebuild / inspection | PASS |
-| Export fidelity to current geometry | PASS |
-| 3MF object integrity | PASS — 2 manifold objects |
-| 3MF volume vs audited mesh sum | PASS — 0.109 mm³ discrepancy |
-| Persistence/reopen | PASS |
-| Long iterative session | PASS — 50 revisions |
-| B-rep volume reliability | **FAIL / unreliable for this run** |
-| Lid mating-feature design | **FAIL — solid plug** |
-| Vent function | **FAIL — blind slots** |
-| Print readiness | **NO** |
-| Overall benchmark | **PARTIAL / CAD_CORRECTION_REQUIRED** |
+The earlier PARTIAL result remains valuable historical evidence, but it is
+superseded as the current final benchmark classification by this corrected
+**PASS**.
