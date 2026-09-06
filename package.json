@@ -81,7 +81,10 @@
     "eval:identity:integrity": "npx tsx scripts/evals/identity-integrity-tests.mjs",
     "eval:agent:identity-integrity": "npx tsx scripts/evals/identity-integrity-tests.mjs",
     "eval:agent": "npx tsx scripts/evals/run.mjs --mode agent",
-    "eval:agent:integrity": "npx tsx scripts/evals/agent-integrity-test.mjs"
+    "eval:agent:integrity": "npx tsx scripts/evals/agent-integrity-test.mjs",
+    "test:gref-mutations": "npx tsx --tsconfig tsconfig.json src/cad/run-mutation-gref-tests.ts",
+    "test:gref-public": "npx tsx --tsconfig tsconfig.json src/cad/run-public-path-gref-regressions.ts",
+    "test:gref": "npm run test:gref-mutations && npm run test:gref-public"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
