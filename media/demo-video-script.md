@@ -3,8 +3,11 @@
 **Purpose:** 60–90 second public proof of Battenmark as the CAD execution layer.
 
 **Current evidence rule:** show only client paths that have actually been
-validated through Battenmark. As of 2026-09-06, the published end-to-end client
-proof is **ChatGPT Work on macOS → Battenmark → FreeCAD 1.1.3 / OpenCascade**.
+validated through Battenmark. As of 2026-09-06:
+
+- ChatGPT Work on macOS has a full-fidelity Orange Pi benchmark plus physical-print proof;
+- Claude has Battenmark MCP interoperability proof and completed the original 50-revision enclosure workflow;
+- Hermes has stock-client MCP interoperability evidence.
 
 ## Core message
 
@@ -12,108 +15,123 @@ Battenmark is not a screenshot generator or a CAD chatbot. It is open,
 backend-neutral CAD infrastructure that gives agents a typed path to create,
 modify, rebuild, validate and export authoritative CAD.
 
-## Version A — can be produced from current verified evidence
+The launch demo should tell the **PARTIAL → correction → PASS** story rather than
+showing only the final render.
 
-### 0:00–0:05 — Hook
+## Preferred launch version — corrected Orange Pi 4 Pro enclosure
 
-**Visual:** final printed calibration coupon in hand, then cut to its FreeCAD model.
+### 0:00–0:06 — Hook
+
+**Visual:** corrected two-piece Orange Pi enclosure model, then a quick cut to the
+final 3MF showing base + lid as separate objects.
 
 **On-screen text:**
 
-`Prompt → Battenmark → FreeCAD/OpenCascade → printable CAD`
+`AI task → Battenmark → FreeCAD/OpenCascade → verified CAD`
 
 **Voiceover:**
 
-> "This part started as an AI task and ended as a real 3D print. Battenmark is the CAD layer in between."
+> "This enclosure did not pass on the first try — and that is exactly why this is a useful CAD benchmark."
 
-### 0:05–0:15 — Show the path
+### 0:06–0:16 — Show the execution layer
 
-**Visual:** simple animated flow:
+**Visual:** animated flow:
 
 ```text
-ChatGPT Work
-    ↓
-Battenmark
-    ↓
+Claude / ChatGPT Work
+        ↓
+     Battenmark
+        ↓
 FreeCAD / OpenCascade
-    ↓
+        ↓
 FCStd · STEP · STL · 3MF
 ```
 
 **Voiceover:**
 
-> "On this Mac, ChatGPT Work used Battenmark to drive FreeCAD and OpenCascade directly through Battenmark's typed CAD interface."
+> "Battenmark sits between AI agents and FreeCAD/OpenCascade, giving them a typed CAD operation surface instead of ad-hoc backend scripts."
 
-### 0:15–0:30 — Build and rebuild
+### 0:16–0:28 — Show the initial PARTIAL result
 
-**Visual:** screen recording of the calibration coupon model and operation history.
-Show the 60 × 25 × 4 mm body and nominal 3 / 4 / 5 mm through-holes.
+**Visual:** highlight the earlier lid geometry.
 
 **Overlay:**
 
-- create geometry
-- rebuild
-- validate
-- export
+- solid lid plug — WRONG
+- blind vents — WRONG
+- valid/exportable geometry ≠ correct design
 
 **Voiceover:**
 
-> "The model is real CAD: geometry creation, parametric rebuilds, validation and export are all part of the same workflow."
+> "The first 50-revision enclosure rebuilt and exported, but the lid was mechanically wrong: a solid plug and blind ventilation. We classified it PARTIAL instead of calling valid geometry a success."
 
-### 0:30–0:40 — Recovery proof
+### 0:28–0:43 — Correction through Battenmark
 
-**Visual:** brief terminal/diagnostic clip showing the FreeCAD worker restart and
-successful continuation.
+**Visual:** show the corrected rim and vent operations/history.
 
-**Voiceover:**
+**Overlay:**
 
-> "The workflow was also tested across a worker restart, then continued and revalidated."
-
-### 0:40–0:55 — Export proof
-
-**Visual:** file list or side-by-side icons for FCStd, STEP, STL and 3MF, followed
-by the FreeCAD model.
+- rim outer: 90.6 × 57.6 mm
+- opening: 85.8 × 52.8 mm
+- wall: 2.4 mm
+- 6 × through-vents: 2.4 × 55 mm
 
 **Voiceover:**
 
-> "Battenmark produced native and interchange outputs including FCStd, STEP, STL and 3MF."
+> "The same persistent Battenmark project was reopened and corrected: the solid plug became a hollow 2.4 millimeter friction rim, and all six vents were rebuilt as true through-cuts."
 
-### 0:55–1:05 — Physical close
+### 0:43–0:58 — Independent export proof
 
-**Visual:** printed coupon next to calipers and/or the printer.
+**Visual:** final 3MF forensic results beside the model.
+
+**Overlay:**
+
+- 2 objects
+- 0 boundary edges
+- 0 non-manifold mesh edges
+- lid analytical: 13,138.56 mm³
+- lid 3MF: 13,138.560000 mm³
 
 **Voiceover:**
 
-> "And the result left the screen: the generated part was physically printed."
+> "The final 3MF contains exactly two watertight manifold objects. The lid's exported mesh volume matches its analytical design essentially exactly."
 
-### 1:05–1:15 — Architecture / CTA
+### 0:58–1:08 — Persistence + failure honesty
 
-**Visual:** Battenmark architecture diagram, then GitHub repo.
+**Visual:** fresh MCP reopen / revision IDs, then briefly show issue #26 title.
 
 **Voiceover:**
 
-> "Battenmark is open source and backend-neutral. FreeCAD/OpenCascade is the authoritative B-rep path today, with a transport surface built for agents and software."
+> "A fresh MCP process reopened the project and recovered the same final state. The run also exposed a real worker-sync bug, which is tracked publicly instead of being hidden by the successful recovery."
+
+### 1:08–1:18 — Physical secondary proof
+
+**Visual:** printed 60 × 25 × 4 mm calibration coupon and calipers/printer.
+
+**Voiceover:**
+
+> "And Battenmark has already crossed from CAD to hardware: an earlier calibration model was physically printed from the same FreeCAD-backed workflow."
+
+### 1:18–1:28 — CTA
+
+**Visual:** Battenmark lockup, architecture diagram, GitHub repo.
+
+**Voiceover:**
+
+> "Battenmark is open source, backend-neutral, and built to make agent-driven CAD auditable."
 
 **On-screen text:**
 
 `github.com/halsyourpal422/Battenmark`
 
-## Version B — preferred launch version after the hard real-world test
+## Short 30-second cut
 
-Replace the calibration coupon as the opening hero with the harder validated
-part (for example, an electronics enclosure) after it passes the same evidence
-bar:
-
-- exact task/prompt preserved;
-- created through Battenmark, not direct FreeCAD control;
-- real FreeCAD/OpenCascade model;
-- rebuild and geometry validation;
-- FCStd + STEP + STL/3MF outputs as applicable;
-- screenshots/video captured;
-- physical print where useful;
-- any corrections or limitations documented.
-
-Use the calibration coupon as a quick secondary proof shot in Version B.
+1. Orange Pi final model — 3 sec.
+2. Show initial solid plug/blind vents — 5 sec.
+3. Show corrected rim/through vents — 7 sec.
+4. Show 2-object watertight 3MF + analytical volume match — 6 sec.
+5. Show printed coupon — 4 sec.
+6. Battenmark logo + GitHub — 5 sec.
 
 ## Production notes
 
@@ -121,11 +139,10 @@ Use the calibration coupon as a quick secondary proof shot in Version B.
 - **Short-form crop:** preserve center-safe framing for 9:16 clips.
 - **Length:** 60–90 seconds for flagship; derive 15–30 second clips afterward.
 - **Style:** technical, restrained, evidence-first.
-- **Brand:** use the approved dimensioned geometric Battenmark B once the exact
-  source asset is in `media/brand/`.
-- **Do not fake typing or accelerate CAD creation so aggressively that the demo
-  becomes impossible to audit.** Moderate time compression is fine when labeled.
-- Keep validation/export filenames visible long enough to read.
+- **Brand:** use the approved geometric Battenmark B and horizontal lockup from `media/brand/`.
+- **Do not fake typing or hide failed modeling steps.** Moderate time compression is fine when labeled.
+- Keep validation/export numbers visible long enough to read.
+- Prefer real FreeCAD/Battenmark screen capture over recreated animations whenever possible.
 
 ## Claims to use
 
@@ -133,12 +150,16 @@ Use the calibration coupon as a quick secondary proof shot in Version B.
 - "Authoritative FreeCAD/OpenCascade B-rep backend."
 - "Typed CAD operations rather than backend-specific feature commands."
 - "Create, rebuild, validate and export real CAD."
-- "Verified end-to-end with ChatGPT Work on macOS."
+- "Corrected Orange Pi 4 Pro hard benchmark: PASS."
+- "Final 3MF: two watertight manifold objects."
+- "Corrected lid analytical volume matches exported mesh essentially exactly."
+- "ChatGPT Work validated through Battenmark on macOS."
+- "Claude validated through Battenmark MCP."
 
-## Claims to avoid until separately validated
+## Claims to avoid
 
 - "Works with every LLM."
-- "Claude uses Battenmark" or equivalent client claims without Battenmark-path evidence.
 - "Fully autonomous mechanical engineering."
 - "Production ready" while the project remains pre-1.0 alpha.
 - Claims that direct FreeCAD control proves Battenmark interoperability.
+- Claims that the final PASS means no platform bugs remain.
