@@ -78,6 +78,8 @@
     "eval:backend-recovery:test": "npx tsx scripts/evals/backend-recovery-tests.mjs",
     "eval:agent:mock": "npx tsx scripts/evals/agent-mock-test.mjs",
     "eval:agent:protocol": "npx tsx scripts/evals/agent-protocol-tests.mjs",
+    "eval:identity:integrity": "npx tsx scripts/evals/identity-integrity-tests.mjs",
+    "eval:agent:identity-integrity": "npx tsx scripts/evals/identity-integrity-tests.mjs",
     "eval:agent": "npx tsx scripts/evals/run.mjs --mode agent",
     "eval:agent:integrity": "npx tsx scripts/evals/agent-integrity-test.mjs"
   },

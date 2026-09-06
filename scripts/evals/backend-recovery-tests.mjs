@@ -3,6 +3,7 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runAgentLoop } from "./agent-loop.mjs";
+import { createEvaluationFixture, executePublicTool } from "./public-executor.mjs";
 import { buildMatrix, createExperimentDefinition, runCheckpointedMatrix } from "./checkpoint.mjs";
 import { createMockProvider } from "./providers/mock.mjs";
 import { loadScenario, scoreTrace } from "./score.mjs";
@@ -45,18 +46,39 @@ async function inTemp(fn) {
 }
 
 function backendScript() {
+  let projectId;
   return [
-    { toolCalls: [{ id: "status", name: "kernel_status", args: {} }] },
-    {
+    (request) => {
+      const content = request.messages.at(-1)?.content || "";
+      const payload = JSON.parse(content.slice(content.indexOf("{")));
+      projectId = payload.results[0]?.details?.project_id;
+      assert(projectId, content);
+      return { toolCalls: [{ id: "status", name: "kernel_status", args: {} }] };
+    },
+    () => ({
+      toolCalls: [
+        {
+          id: "inspect",
+          name: "inspect_faces",
+          args: { project_id: projectId, body_id: "diagnostic_fixture", selector: "top_face" },
+        },
+      ],
+    }),
+    () => ({
       toolCalls: [
         {
           id: "correct",
           name: "query_geometry",
-          args: { body_id: "diagnostic_fixture", entity: "face", selector: "top_face" },
+          args: {
+            project_id: projectId,
+            body_id: "diagnostic_fixture",
+            entity: "face",
+            selector: "top_face",
+          },
         },
       ],
-    },
-    { toolCalls: [{ id: "verify", name: "validate", args: {} }] },
+    }),
+    () => ({ toolCalls: [{ id: "verify", name: "validate", args: { project_id: projectId } }] }),
     { output: "recovered", toolCalls: [] },
   ];
 }
@@ -102,6 +124,10 @@ await test("B1-B2-promised-error-injected-exactly-once", () =>
       JSON.stringify(firstRequest.messages).includes("GEOMETRY_REFERENCE_LOST"),
       "model did not receive error",
     );
+    assert(
+      JSON.stringify(firstRequest.messages).includes("diagnostic-project"),
+      "model did not receive the pre-existing public project handle",
+    );
   }));
 
 for (const scenario of ["assembly", "enclosure"]) {
@@ -132,6 +158,149 @@ await test("B6-trace-records-safe-injected-error", () =>
       JSON.stringify(error),
     );
   }));
+
+await test("B7-fixture-seeds-coherent-public-project-document-body-session", async () => {
+  const scenario = await loadScenario("backend-diagnostics");
+  const fixture = createEvaluationFixture(scenario);
+  const initialized = fixture.initialize({});
+  assert(
+    initialized.public_context.project_id === "diagnostic-project",
+    JSON.stringify(initialized),
+  );
+  assert(initialized.public_context.body_id === "diagnostic_fixture", JSON.stringify(initialized));
+  const inspected = await executePublicTool(
+    "inspect_document",
+    { project_id: initialized.public_context.project_id },
+    { state: initialized.state },
+  );
+  assert(inspected.ok, JSON.stringify(inspected));
+  assert(inspected.data.id === initialized.public_context.document_id, JSON.stringify(inspected));
+  assert(inspected.data.bodies[0]?.id === "diagnostic_fixture", JSON.stringify(inspected));
+  assert(!JSON.stringify(inspected.data).includes("fixture_geometry"), JSON.stringify(inspected));
+});
+
+await test("B8-backend-recovery-executes-inspect-retry-reverify-in-real-session", () =>
+  inTemp(async (dir) => {
+    const { row, trace } = await tracedRun(dir, "backend-diagnostics", "with-skill");
+    const calls = trace.events.filter((event) => event.kind === "tool_call");
+    const resultsById = new Map(
+      trace.events
+        .filter((event) => event.kind === "tool_result")
+        .map((event) => [event.tool_call_id, event.result]),
+    );
+    for (const id of ["inspect", "correct", "verify"])
+      assert(resultsById.get(id)?.ok === true, `${id}: ${JSON.stringify(resultsById.get(id))}`);
+    const modelCalls = calls.filter((call) => call.source === "model");
+    assert(
+      modelCalls.find((call) => call.tool_call_id === "inspect")?.args.project_id ===
+        "diagnostic-project",
+      JSON.stringify(modelCalls),
+    );
+    assert(
+      modelCalls.find((call) => call.tool_call_id === "correct")?.args.body_id ===
+        "diagnostic_fixture",
+      JSON.stringify(modelCalls),
+    );
+    assert(
+      row.checks.recovery_succeeded === true && row.checks.re_verified === true,
+      JSON.stringify(row.checks),
+    );
+  }));
+
+await test("B9-fabricated-backend-context-never-receives-recovery-success", async () => {
+  const scenario = await loadScenario("backend-diagnostics");
+  const initialized = createEvaluationFixture(scenario).initialize({});
+  const attempts = [
+    [
+      "query_geometry",
+      {
+        project_id: "wrong-project",
+        body_id: "diagnostic_fixture",
+        entity: "face",
+        selector: "top_face",
+      },
+      "PROJECT_NOT_FOUND",
+    ],
+    [
+      "inspect_faces",
+      { project_id: "diagnostic-project", body_id: "fabricated-body", selector: "top_face" },
+      "UNKNOWN_BODY",
+    ],
+    [
+      "query_geometry",
+      {
+        project_id: "diagnostic-project",
+        body_id: "diagnostic_fixture",
+        entity: "face",
+        selector: { gref: "gref_missing" },
+      },
+      "GEOMETRY_REFERENCE_LOST",
+    ],
+  ];
+  for (const [name, args, code] of attempts) {
+    const result = await executePublicTool(name, args, { state: initialized.state });
+    assert(result.ok === false && result.code === code, `${name}: ${JSON.stringify(result)}`);
+    assert(result.state.geometry_inspected !== true, `${name} assigned positive recovery state`);
+  }
+  const unrelated = await executePublicTool(
+    "project_create",
+    { name: "unrelated" },
+    { state: initialized.state },
+  );
+  const fabricated = await executePublicTool(
+    "query_geometry",
+    {
+      project_id: unrelated.data.project_id,
+      body_id: "diagnostic_fixture",
+      entity: "face",
+      selector: "top_face",
+    },
+    { state: unrelated.state },
+  );
+  assert(fabricated.ok === false && fabricated.code === "UNKNOWN_BODY", JSON.stringify(fabricated));
+});
+
+await test("B10-unrelated-project-agent-loop-gets-no-recovery-credit", async () => {
+  let phase = 0;
+  let unrelatedProject;
+  const row = await runAgentLoop({
+    scenarioId: "backend-diagnostics",
+    condition: "no-skill",
+    provider: {
+      id: "mock",
+      async run(request) {
+        phase += 1;
+        if (phase === 1)
+          return { toolCalls: [{ name: "project_create", args: { name: "unrelated" } }] };
+        const content = request.messages.at(-1)?.content || "";
+        const payload = JSON.parse(content.slice(content.indexOf("{")));
+        if (phase === 2) {
+          unrelatedProject = payload.results[0]?.data?.project_id;
+          assert(unrelatedProject, content);
+          return {
+            toolCalls: [
+              {
+                name: "query_geometry",
+                args: {
+                  project_id: unrelatedProject,
+                  body_id: "diagnostic_fixture",
+                  entity: "face",
+                  selector: "top_face",
+                },
+              },
+            ],
+          };
+        }
+        assert(payload.results[0]?.code === "UNKNOWN_BODY", content);
+        return { output: "The unrelated project cannot recover this fixture.", toolCalls: [] };
+      },
+    },
+    config: { provider: "mock", model: "mock-model" },
+  });
+  assert(row.checks.recovery_attempted === true, JSON.stringify(row.checks));
+  assert(row.checks.recovery_succeeded === false, JSON.stringify(row.checks));
+  assert(row.checks.re_verified === false, JSON.stringify(row.checks));
+});
 
 function call(name, { ok = true, args = {}, code, order } = {}) {
   return { name, ok, args, code, error: code ? "safe error" : undefined, order };

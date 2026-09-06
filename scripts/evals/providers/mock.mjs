@@ -1,7 +1,12 @@
 /**
  * Phase 7C.2 — Deterministic mock EvalProvider for CI.
  */
-import { EvalProviderError, normalizeRequest, normalizeResult, registerProvider } from "./provider.mjs";
+import {
+  EvalProviderError,
+  normalizeRequest,
+  normalizeResult,
+  registerProvider,
+} from "./provider.mjs";
 
 export function createMockProvider(options = {}) {
   const script = Array.isArray(options.script) ? [...options.script] : null;
@@ -9,9 +14,11 @@ export function createMockProvider(options = {}) {
     id: "mock",
     async run(request) {
       const normalized = normalizeRequest(request);
-      if (!normalized.model) throw new EvalProviderError("MODEL_REQUIRED", "mock requires model field");
+      if (!normalized.model)
+        throw new EvalProviderError("MODEL_REQUIRED", "mock requires model field");
       if (script && script.length) {
-        const turn = script.shift();
+        const scripted = script.shift();
+        const turn = typeof scripted === "function" ? await scripted(normalized) : scripted;
         return normalizeResult({
           providerId: "mock",
           model: normalized.model,

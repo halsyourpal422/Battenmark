@@ -3,7 +3,7 @@ import { mkdir, open, readFile, rename, rm } from "node:fs/promises";
 import { dirname, isAbsolute, relative, resolve } from "node:path";
 
 export const TRACE_SCHEMA_VERSION = "battenmark.eval.trace.v1";
-export const EVALUATION_SEMANTICS_VERSION = "battenmark.phase7c.agent-protocol.v3";
+export const EVALUATION_SEMANTICS_VERSION = "battenmark.phase7c.identity-integrity.v4";
 export const MODEL_TOOL_RESULT_SCHEMA_VERSION = "battenmark.eval.tool-result.v1";
 
 const MODEL_RESULT_MAX_DEPTH = 5;

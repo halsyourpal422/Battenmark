@@ -3,7 +3,6 @@ import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { runAgentLoop } from "./agent-loop.mjs";
-import { createMockProvider } from "./providers/mock.mjs";
 import {
   EVALUATION_SEMANTICS_VERSION,
   TRACE_SCHEMA_VERSION,
@@ -43,7 +42,8 @@ function capturingProvider(script, inspectRequest = () => {}) {
     async run(request) {
       calls += 1;
       inspectRequest(request, calls);
-      const next = turns.shift() || {};
+      const scripted = turns.shift() || {};
+      const next = typeof scripted === "function" ? scripted(request, calls) : scripted;
       return {
         output: next.output ?? "",
         toolCalls: next.toolCalls ?? [],
@@ -54,15 +54,27 @@ function capturingProvider(script, inspectRequest = () => {}) {
   };
 }
 
+function returnedProjectId(request) {
+  const content = request.messages.at(-1)?.content || "";
+  const payload = JSON.parse(content.slice(content.indexOf("{")));
+  const projectId = payload.results.find((result) => result.operation === "project_create")?.data
+    ?.project_id;
+  assert(projectId, content);
+  return projectId;
+}
+
 await test("P1-enclosure-explicit-intention-continues-once", async () => {
-  const provider = createMockProvider({
-    script: [
-      { toolCalls: [{ name: "project_create", args: { name: "eval-enclosure" } }] },
-      {
+  let projectId;
+  const provider = capturingProvider([
+    { toolCalls: [{ name: "project_create", args: { name: "eval-enclosure" } }] },
+    (request) => {
+      projectId = returnedProjectId(request);
+      return {
         toolCalls: [
           {
             name: "add_rectangle",
             args: {
+              project_id: projectId,
               sketch_id: "usb-opening",
               x_mm: 0,
               y_mm: 3,
@@ -71,24 +83,30 @@ await test("P1-enclosure-explicit-intention-continues-once", async () => {
             },
           },
         ],
-      },
-      {
-        output:
-          "The rectangle is ready. Next I will pocket it to create the opening. Let's execute this step.",
-        finishReason: "stop",
-        toolCalls: [],
-      },
-      {
-        toolCalls: [
-          { name: "pocket", args: { sketch_id: "usb-opening", depth_mm: 2 } },
-          { name: "validate", args: {} },
-          { name: "render_preview", args: { view: "isometric" } },
-          { name: "export_step", args: {} },
-        ],
-      },
-      { output: "All requested work is complete and the artifact is available.", toolCalls: [] },
-    ],
-  });
+      };
+    },
+    {
+      output:
+        "The rectangle is ready. Next I will pocket it to create the opening. Let's execute this step.",
+      finishReason: "stop",
+      toolCalls: [],
+    },
+    () => ({
+      toolCalls: [
+        {
+          name: "pocket",
+          args: { project_id: projectId, sketch_id: "usb-opening", depth_mm: 2 },
+        },
+        { name: "validate", args: { project_id: projectId } },
+        {
+          name: "render_preview",
+          args: { project_id: projectId, view: "isometric" },
+        },
+        { name: "export_step", args: { project_id: projectId } },
+      ],
+    }),
+    { output: "All requested work is complete and the artifact is available.", toolCalls: [] },
+  ]);
   const row = await runAgentLoop({
     scenarioId: "enclosure",
     condition: "with-skill",
@@ -102,21 +120,117 @@ await test("P1-enclosure-explicit-intention-continues-once", async () => {
 
 await test("P2-assembly-public-result-state-reaches-next-turn", async () => {
   let inspected = false;
+  let projectId;
   const provider = capturingProvider(
     [
-      {
+      { toolCalls: [{ name: "project_create", args: { name: "protocol-assembly" } }] },
+      (request) => {
+        projectId = returnedProjectId(request);
+        return {
+          toolCalls: [
+            {
+              name: "create_box",
+              args: {
+                project_id: projectId,
+                name: "Anchor",
+                length_mm: 60,
+                width_mm: 40,
+                height_mm: 10,
+              },
+            },
+            {
+              name: "create_box",
+              args: {
+                project_id: projectId,
+                name: "Mover",
+                length_mm: 30,
+                width_mm: 30,
+                height_mm: 12,
+              },
+            },
+            {
+              id: "assembly-1",
+              name: "create_assembly",
+              args: { project_id: projectId, assembly_id: "assembly" },
+            },
+            {
+              name: "define_component",
+              args: {
+                project_id: projectId,
+                assembly_id: "assembly",
+                component_id: "anchor",
+              },
+            },
+            {
+              name: "define_component",
+              args: {
+                project_id: projectId,
+                assembly_id: "assembly",
+                component_id: "mover",
+              },
+            },
+            {
+              name: "create_instance",
+              args: {
+                project_id: projectId,
+                assembly_id: "assembly",
+                component_id: "anchor",
+                instance_id: "a1",
+              },
+            },
+            {
+              name: "create_instance",
+              args: {
+                project_id: projectId,
+                assembly_id: "assembly",
+                component_id: "mover",
+                instance_id: "b1",
+              },
+            },
+            {
+              name: "fix_instance",
+              args: { project_id: projectId, assembly_id: "assembly", instance_id: "a1" },
+            },
+            {
+              name: "mate_faces",
+              args: {
+                project_id: projectId,
+                assembly_id: "assembly",
+                a_instance: "a1",
+                a_face: "top_face",
+                b_instance: "b1",
+                b_face: "bottom_face",
+              },
+            },
+          ],
+        };
+      },
+      () => ({
         toolCalls: [
-          { id: "inspect-1", name: "inspect_assembly", args: { assembly_id: "assembly" } },
-          { id: "interference-1", name: "check_interference", args: { assembly_id: "assembly" } },
+          {
+            id: "inspect-1",
+            name: "inspect_assembly",
+            args: { project_id: projectId, assembly_id: "assembly" },
+          },
+          {
+            id: "interference-1",
+            name: "check_interference",
+            args: { project_id: projectId, assembly_id: "assembly" },
+          },
         ],
-      },
-      {
-        toolCalls: [{ name: "export_assembly", args: { assembly_id: "assembly", format: "step" } }],
-      },
+      }),
+      () => ({
+        toolCalls: [
+          {
+            name: "export_assembly",
+            args: { project_id: projectId, assembly_id: "assembly", format: "step" },
+          },
+        ],
+      }),
       { output: "Assembly inspection and export are complete." },
     ],
     (request, call) => {
-      if (call !== 2) return;
+      if (call !== 4) return;
       const content = request.messages.at(-1)?.content || "";
       assert(content.includes('"operation": "inspect_assembly"'), content);
       assert(content.includes('"remaining_dof": 3'), content);
@@ -138,23 +252,64 @@ await test("P2-assembly-public-result-state-reaches-next-turn", async () => {
 
 await test("P3-successful-boolean-state-reaches-next-turn", async () => {
   let inspected = false;
+  let projectId;
+  let bodyIds = [];
   const provider = capturingProvider(
     [
-      {
-        toolCalls: [
-          {
-            name: "boolean_cut",
-            args: { target_body_id: "outer", tool_body_id: "cavity" },
-          },
-        ],
+      { toolCalls: [{ name: "project_create", args: { name: "protocol-boolean" } }] },
+      (request) => {
+        projectId = returnedProjectId(request);
+        return {
+          toolCalls: [
+            {
+              name: "create_box",
+              args: {
+                project_id: projectId,
+                name: "Outer",
+                length_mm: 10,
+                width_mm: 10,
+                height_mm: 10,
+              },
+            },
+            {
+              name: "create_box",
+              args: {
+                project_id: projectId,
+                name: "Cavity",
+                length_mm: 8,
+                width_mm: 8,
+                height_mm: 8,
+              },
+            },
+          ],
+        };
+      },
+      (request) => {
+        const content = request.messages.at(-1)?.content || "";
+        const payload = JSON.parse(content.slice(content.indexOf("{")));
+        bodyIds = payload.results.map((result) => result.data?.body_id);
+        assert(bodyIds.length === 2 && bodyIds.every(Boolean), content);
+        return {
+          toolCalls: [
+            {
+              name: "boolean_cut",
+              args: {
+                project_id: projectId,
+                target_body_id: bodyIds[0],
+                tool_body_id: bodyIds[1],
+              },
+            },
+          ],
+        };
       },
       { output: "The requested boolean operation is complete." },
     ],
     (request, call) => {
-      if (call !== 2) return;
+      if (call !== 4) return;
       const content = request.messages.at(-1)?.content || "";
       assert(content.includes('"operation": "boolean_cut"'), content);
       assert(content.includes('"feature_applied": true'), content);
+      assert(content.includes(`"target_body_id": "${bodyIds[0]}"`), content);
       inspected = true;
     },
   );
@@ -295,7 +450,7 @@ await test("P9-continuation-decision-is-forensic-and-schema-compatible", async (
     const decisions = trace.events.filter((event) => event.kind === "continuation_decision");
     assert(trace.schema_version === "battenmark.eval.trace.v1", trace.schema_version);
     assert(
-      trace.evaluation_semantics === "battenmark.phase7c.agent-protocol.v3",
+      trace.evaluation_semantics === "battenmark.phase7c.identity-integrity.v4",
       trace.evaluation_semantics,
     );
     assert(

@@ -40,6 +40,8 @@ jobs:
           set -e
           echo "== eval:agent:protocol =="
           npm run --silent eval:agent:protocol
+          echo "== eval:identity:integrity =="
+          npm run --silent eval:identity:integrity
           echo "== eval:agent:integrity =="
           npm run --silent eval:agent:integrity
           echo "== eval:checkpoint:test =="

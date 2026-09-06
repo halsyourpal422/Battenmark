@@ -2,6 +2,7 @@
 import { mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+import { loadPublicCatalog } from "./public-executor.mjs";
 
 let checkpointApi = {};
 let importError;
@@ -314,10 +315,10 @@ await test("checkpoint-frozen-config-mismatch-fails-closed", () =>
     }
   }));
 
-await test("checkpoint-phase7c5-v2-semantics-cannot-resume-v3", () =>
+await test("checkpoint-phase7c6-v3-semantics-cannot-resume-v4", () =>
   tempCheckpoint(async ({ path }) => {
     const oldExperiment = experiment({
-      evaluation_semantics: "battenmark.phase7c.backend-recovery.v2",
+      evaluation_semantics: "battenmark.phase7c.agent-protocol.v3",
     });
     const oldMatrix = checkpointApi.buildMatrix(oldExperiment);
     let seedCalls = 0;
@@ -331,7 +332,7 @@ await test("checkpoint-phase7c5-v2-semantics-cannot-resume-v3", () =>
           seedCalls += 1;
           if (seedCalls === 2) throw new Error("stop after old row");
           return row(entry, {
-            evaluation_semantics: "battenmark.phase7c.backend-recovery.v2",
+            evaluation_semantics: "battenmark.phase7c.agent-protocol.v3",
           });
         },
       });
@@ -345,7 +346,7 @@ await test("checkpoint-phase7c5-v2-semantics-cannot-resume-v3", () =>
 
     const currentExperiment = experiment({
       ...oldExperiment,
-      evaluation_semantics: "battenmark.phase7c.agent-protocol.v3",
+      evaluation_semantics: "battenmark.phase7c.identity-integrity.v4",
     });
     let providerCalls = 0;
     try {
@@ -359,6 +360,60 @@ await test("checkpoint-phase7c5-v2-semantics-cannot-resume-v3", () =>
         },
       });
       throw new Error("expected old protocol checkpoint rejection");
+    } catch (error) {
+      assert(error.code === "CHECKPOINT_EXPERIMENT_MISMATCH", `code=${error.code}`);
+      assert(providerCalls === 0, `provider called ${providerCalls} times`);
+    }
+  }));
+
+await test("checkpoint-pr17-catalog-cannot-resume-remediated-v4", () =>
+  tempCheckpoint(async ({ path }) => {
+    requireApi("sha256Canonical");
+    const reviewedCatalogHash = "4fbdd518c661fb7a993d4ed1716d7f933e2b1109e12f084e54bbfdd4fd9dfc74";
+    const remediatedCatalogHash = checkpointApi.sha256Canonical(
+      (await loadPublicCatalog()).entries,
+    );
+    assert(remediatedCatalogHash !== reviewedCatalogHash, remediatedCatalogHash);
+    const oldExperiment = experiment({
+      tool_catalog_hash: reviewedCatalogHash,
+      evaluation_semantics: "battenmark.phase7c.identity-integrity.v4",
+    });
+    const oldMatrix = checkpointApi.buildMatrix(oldExperiment);
+    let seedCalls = 0;
+    try {
+      await checkpointApi.runCheckpointedMatrix({
+        experiment: oldExperiment,
+        matrix: oldMatrix,
+        checkpointPath: path,
+        resume: false,
+        executeRow: async (entry) => {
+          seedCalls += 1;
+          if (seedCalls === 2) throw new Error("stop after reviewed row");
+          return row(entry, {
+            evaluation_semantics: "battenmark.phase7c.identity-integrity.v4",
+          });
+        },
+      });
+    } catch (error) {
+      if (error.message !== "stop after reviewed row") throw error;
+    }
+
+    const currentExperiment = experiment({
+      ...oldExperiment,
+      tool_catalog_hash: remediatedCatalogHash,
+    });
+    let providerCalls = 0;
+    try {
+      await checkpointApi.runCheckpointedMatrix({
+        experiment: currentExperiment,
+        matrix: checkpointApi.buildMatrix(currentExperiment),
+        checkpointPath: path,
+        resume: true,
+        executeRow: async () => {
+          providerCalls += 1;
+        },
+      });
+      throw new Error("expected prior catalog checkpoint rejection");
     } catch (error) {
       assert(error.code === "CHECKPOINT_EXPERIMENT_MISMATCH", `code=${error.code}`);
       assert(providerCalls === 0, `provider called ${providerCalls} times`);
