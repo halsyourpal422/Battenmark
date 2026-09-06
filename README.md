@@ -23,7 +23,7 @@ interchangeable CAD backends. Callers request `create_hole` — never
 As of **September 6, 2026**, two agent/client paths have published Battenmark
 proof rather than being treated only as compatibility targets.
 
-### ChatGPT Work on macOS — physical-output proof
+### ChatGPT Work on macOS — full-fidelity + physical-output proof
 
 ```text
 ChatGPT Work on macOS
@@ -38,14 +38,31 @@ FreeCAD 1.1.3 / OpenCascade
         ├── STEP
         ├── STL
         └── 3MF
-        │
-        ▼
-physical 3D print
 ```
 
-That path has been exercised with real geometry creation, parametric rebuilds,
-worker restart/recovery, export, validation, and a successfully printed
-**60 × 25 × 4 mm calibration coupon with nominal 3 / 4 / 5 mm through-holes**.
+ChatGPT Work has been exercised through Battenmark with real geometry creation,
+parametric rebuilds, worker restart/recovery, export, validation and persistence.
+It also produced a successfully printed **60 × 25 × 4 mm calibration coupon with
+nominal 3 / 4 / 5 mm through-holes**.
+
+The harder corrected **two-piece Orange Pi 4 Pro enclosure** now also passes its
+full benchmark through Battenmark:
+
+- base: **96 × 63 × 22 mm**;
+- lid: **96 × 63 × 6 mm**;
+- hollow friction rim: **90.6 × 57.6 mm outer / 85.8 × 52.8 mm inner / 2.4 mm walls**;
+- six true **2.4 × 55 mm** through-vents;
+- final 3MF: **2 watertight manifold objects**;
+- boundary edges: **0 / 0**;
+- non-manifold mesh edges: **0 / 0**;
+- corrected analytical lid volume: **13,138.56 mm³**;
+- exported lid mesh volume: **13,138.560000 mm³**;
+- combined 3MF mesh volume: **41,281.246683 mm³**;
+- difference from Battenmark export volume: **0.109317 mm³ / 0.000265%**;
+- fresh-process persistence/reopen: **PASS**;
+- direct FreeCAD bypass: **NO**.
+
+**Overall corrected Orange Pi benchmark: PASS.**
 
 ### Claude via MCP — end-to-end CAD workflow proof
 
@@ -56,16 +73,14 @@ A tiny interoperability proof discovered **75 tools**, created a
 **20 × 15 × 5 mm** solid, rebuilt it as **1 valid solid / 1,500 mm³**, and
 cleaned up without direct FreeCAD bypass.
 
-Claude then completed a **50-revision two-piece Orange Pi 4 Pro enclosure**
-workflow entirely through Battenmark. The execution, rebuild/inspection,
-persistence and export path worked, and the exported 3MF contains exactly two
-manifold objects matching the current CAD mesh to floating-point tolerance.
-The enclosure benchmark is deliberately classified **PARTIAL /
-CAD_CORRECTION_REQUIRED** because the lid currently uses a solid plug instead of
-a hollow friction rim and its vent slots are blind rather than through-cut.
+Claude then completed the original **50-revision two-piece Orange Pi 4 Pro
+enclosure workflow** entirely through Battenmark. That first hard result was
+correctly published as PARTIAL because it exposed real lid-rim and vent defects.
+Those defects became the correction benchmark that was subsequently completed to
+PASS in ChatGPT Work.
 
 See [client validation evidence](docs/CLIENT_VALIDATION.md) and the
-[Orange Pi hard benchmark audit](docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md).
+[corrected Orange Pi hard benchmark](docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md).
 
 Battenmark is intentionally provider-neutral. Other LLM clients/providers should
 remain compatibility targets until equivalent evidence is published for them.
@@ -182,6 +197,10 @@ This is pre-1.0 alpha software; APIs may change.
 - Bodies carrying non-manifold-edge warnings can produce **unreliable B-rep volume
   integrals**; benchmark evidence should cross-check mesh/analytical volume rather
   than treating a raw OpenCascade volume number as ground truth in that condition
+- A real Orange Pi correction run exposed a worker-sync regression candidate:
+  editing an existing pocket depth updated metadata without reliably rebuilding
+  the worker geometry; deleting/recreating the stale pocket through Battenmark
+  produced the correct persisted/exported shape
 - One serialized FreeCAD worker (no pooling)
 - Preview rendering is JSCAD, not OCC hidden-line
 - Complete topological naming is not solved; persistent `gref` mitigates it
@@ -199,6 +218,7 @@ Full list: [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 | Service & persistence | [docs/SERVICE.md](docs/SERVICE.md) · [docs/AUTH.md](docs/AUTH.md) |
 | Import / export & preview | [docs/IMPORT.md](docs/IMPORT.md) · [docs/PREVIEW.md](docs/PREVIEW.md) |
 | Platforms & validation | [docs/MACOS.md](docs/MACOS.md) · [docs/LINUX.md](docs/LINUX.md) · [docs/RELEASE.md](docs/RELEASE.md) |
+| Hard benchmark | [docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md](docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md) |
 | Public promotion / adoption | [docs/PROMOTION_PLAN.md](docs/PROMOTION_PLAN.md) |
 
 ## Compatibility identifiers
