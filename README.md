@@ -149,6 +149,51 @@ version `0.5.6` intentionally differs from the release tag; see
 See [CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 Code of Conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 
+## Phase 8B Release Candidate Evidence
+
+**Qualified candidate SHA:** `31ee9369fe84b35d83932e86bf9fd0b64564aedd`
+
+This SHA passed:
+- All 9/9 CI jobs (exact-main matrix)
+- FreeCAD discovery and validation
+- TypeScript strict check
+- Full test suite (kernel-free + FreeCAD + gref + transport parity)
+- User Trial 001 (42/42 HTTP operations, USB + microSD holder, 305,698.91 mm³)
+- Repository hygiene & legal/release docs review
+- Five canonical demos (A–E)
+
+### Five Canonical Demos
+
+| Demo | Description | Result | Evidence |
+|------|-------------|--------|----------|
+| **A** | Prompt → L-bracket with holes, fillet | PASS (24,046.95 mm³) | [docs/demos/demo-a-l-bracket.md](docs/demos/demo-a-l-bracket.md) |
+| **B** | STEP import → inspect → modify → export | PASS (22,846.95 mm³) | [docs/demos/demo-b-import-modify.md](docs/demos/demo-b-import-modify.md) |
+| **C** | Iterative correction (spacing change) | PASS (before/after) | [docs/demos/demo-c-iterative.md](docs/demos/demo-c-iterative.md) |
+| **D** | Assembly + DOF diagnostics | PASS — mixed transport* | [docs/demos/demo-d-assembly.md](docs/demos/demo-d-assembly.md) |
+| **E** | Same surface via 3 selector paths | PASS (3× convergence) | [docs/demos/demo-e-selector-paths.md](docs/demos/demo-e-selector-paths.md) |
+
+*Demo D: Body/multi-body geometry and export were performed over HTTP; full assembly constraints and DOF diagnostics used the MCP transport. The demo met its designed acceptance criteria by intentionally using MCP for the assembly portion.
+
+**User Trial 001:** [docs/demos/user-trial-001.md](docs/demos/user-trial-001.md)
+
+Each demo summary page contains: purpose, prompt summary, result, validation, exact candidate SHA, and a link to the full Drive evidence archive.
+
+### Media Assets
+
+| Asset | Description |
+|-------|-------------|
+| [GitHub Hero](media/github-hero/github-hero.png) | 1280×640 collage of all demo previews |
+| [Social Preview](media/social-preview/social-preview.png) | 1280×640 with branding + SHA |
+| [Architecture Diagram](media/architecture/architecture.mmd) | Mermaid flowchart of Battenmark core/transports/backends |
+| [Demo Video Script](media/demo-video-script.md) | 45–60s shot list + production notes |
+
+### Key Technical Findings (Preserved)
+
+- **Demo A**: Face selector ambiguity after boolean union is avoided by creating features on individual bodies *before* union.
+- **Demo B**: STEP import requires workspace path (not raw base64); boolean operation is `boolean_cut`.
+- **Demo D**: Full assembly constraint/DOF path uses MCP; HTTP supports body/multi-body geometry/export only.
+- **Demo E**: Three resolution paths (face enum, `centroid_near` spatial selector, `created_by` feature reference) converge on identical geometry.
+
 ## License
 
 Apache-2.0 for this repository. FreeCAD/OpenCascade are invoked as a separate
