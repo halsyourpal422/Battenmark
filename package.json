@@ -67,7 +67,21 @@
     "skills:validate:test": "npx tsx scripts/skills/validate-test.mjs",
     "eval:skills": "npx tsx scripts/evals/run.mjs",
     "eval:skills:reference": "npx tsx scripts/evals/run.mjs --mode reference",
-    "eval:skills:score": "npx tsx scripts/evals/score-test.mjs"
+    "eval:skills:score": "npx tsx scripts/evals/score-test.mjs",
+    "eval:enclosure-score:test": "npx tsx scripts/evals/enclosure-score-tests.mjs",
+    "eval:phase7c5b:skill-contract": "npx tsx scripts/evals/phase7c5b-skill-contract-tests.mjs",
+    "eval:phase7c4:rescore": "npx tsx scripts/evals/rescore-phase7c4.mjs",
+    "eval:provider:test": "npx tsx scripts/evals/providers/provider-tests.mjs",
+    "eval:provider:redaction": "npx tsx scripts/evals/providers/secret-redaction-test.mjs",
+    "eval:checkpoint:test": "npx tsx scripts/evals/checkpoint-tests.mjs",
+    "eval:trace:test": "npx tsx scripts/evals/trace-tests.mjs",
+    "eval:backend-recovery:test": "npx tsx scripts/evals/backend-recovery-tests.mjs",
+    "eval:agent:mock": "npx tsx scripts/evals/agent-mock-test.mjs",
+    "eval:agent:protocol": "npx tsx scripts/evals/agent-protocol-tests.mjs",
+    "eval:identity:integrity": "npx tsx scripts/evals/identity-integrity-tests.mjs",
+    "eval:agent:identity-integrity": "npx tsx scripts/evals/identity-integrity-tests.mjs",
+    "eval:agent": "npx tsx scripts/evals/run.mjs --mode agent",
+    "eval:agent:integrity": "npx tsx scripts/evals/agent-integrity-test.mjs"
   },
   "dependencies": {
     "@electric-sql/pglite": "^0.5.4",
