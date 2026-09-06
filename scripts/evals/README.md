@@ -1,43 +1,42 @@
-# Phase 7C — CAD Skill Evaluation Harness
+# Phase 7C / 7C.2 — CAD Skill Evaluation Harness
 
 Compares CAD task performance **without** vs **with** Battenmark skill guidance.
 
 ## Modes
 
-| Mode | Purpose | CI |
+| Mode | Command | CI |
 |------|---------|-----|
-| `reference` | Deterministic oracle workflows + scoring | Required |
-| `score` tests | Scorer unit tests + mutation proof | Required |
-| `agent` | Real-agent A/B (Hermes / MCP client) | Manual / optional |
+| `reference` | `npm run eval:skills:reference` | Required |
+| scorer tests | `npm run eval:skills:score` | Required |
+| provider tests | `npm run eval:provider:test` | Required |
+| secret redaction | `npm run eval:provider:redaction` | Required |
+| mock agent A/B | `npm run eval:agent:mock` | Required |
+| real agent A/B | `npm run eval:agent -- --authorize-paid` | Manual |
 
-## Commands
+## Configuration
 
-```bash
-npm run eval:skills:reference
-npm run eval:skills:score
-npm run eval:skills -- --mode reference --scenario assembly
+```text
+BATTENMARK_EVAL_PROVIDER=openai-compatible
+BATTENMARK_EVAL_MODEL=<model-id>
+BATTENMARK_EVAL_API_KEY_ENV=OPENAI_API_KEY
+OPENAI_API_KEY=<secret>
 ```
 
-Agent A/B requires credentials (`BATTENMARK_EVAL_MODEL` + provider key). Without them, agent mode SKIPs cleanly.
+A model name is not a credential. Paid runs also require `--authorize-paid`.
+
+## 18-run A/B
+
+```bash
+npm run eval:agent -- --condition both --repeats 3 --authorize-paid
+```
+
+Scenarios: assembly, enclosure, backend-diagnostics.
+
+Results write to `scripts/evals/results/` (gitignored JSON summaries).
 
 ## Architecture
 
-```text
-scenario JSON  →  reference oracle OR agent adapter
-                         ↓
-                      Trace
-                         ↓
-                   scoreTrace()
-                         ↓
-              score / PASS|PARTIAL|FAIL
-```
+Skills load from `skills/<id>/SKILL.md`. Scoring uses the Phase 7C scorer.
+No embedded agent runtime, no executable skills, no MCP discovery.
 
-- Skills loaded from `skills/<id>/SKILL.md`
-- Scorer uses Battenmark state + tool traces, not agent prose
-- No agent runtime, no executable skills, no MCP discovery
-
-## Scenarios
-
-- basic-part, enclosure, assembly (dof=3), backend-diagnostics, fdm-dfm
-
-See `docs/architecture/PHASE_7C_SKILL_EVALUATION.md`.
+See `docs/architecture/PHASE_7C_2_REAL_AGENT_EVALUATION.md`.
