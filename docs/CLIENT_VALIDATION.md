@@ -22,6 +22,7 @@ This page records the current evidence level for agent/client integrations.
 | --- | --- | --- | --- |
 | **ChatGPT Work on macOS** | Full-fidelity hard benchmark + physical-output proof | **PASS** | Proven through Battenmark to FreeCAD 1.1.3/OpenCascade with real geometry, rebuild, correction, FCStd/STEP/STL/3MF export, persistence/reopen, independent 3MF audit, and an earlier physically printed calibration coupon. |
 | **Claude via MCP stdio** | End-to-end CAD workflow + interoperability proof | **PASS** | Tiny proof: 75-tool discovery, `kernel_status`, 20×15×5 mm solid, valid OCC rebuild, 1 solid, 1,500 mm³, cleanup, no direct FreeCAD bypass. Claude also completed the original 50-revision two-piece Orange Pi workflow through Battenmark only. The final corrected enclosure was subsequently audited to full PASS in ChatGPT Work. |
+| **OpenCode + local LLM** | End-to-end CAD workflow + downstream slicer ingestion | **PASS** | Created and validated a one-solid Xbox controller holder through Battenmark → FreeCAD/OpenCascade, exported STL/3MF, and the STL was accepted and fully sliced in ELEGOO Slicer. The artifact was intentionally not printed, so physical fit/ergonomics remain unvalidated. |
 | **Hermes 0.20.5 stock MCP client** | Protocol/client proof | **PASS** | Stock client discovered 75/75 tools and completed two clean 13/13 assembly/control runs with export and structured-error recovery. This is protocol/client interoperability evidence, not a claim of autonomous model-quality parity. |
 | **Agent Zero** | Source-level assessment only | **UNVALIDATED as direct Battenmark client** | No direct MCP client was available in the assessed version; no bridge was added merely to manufacture a compatibility claim. |
 | Other agents / IDEs / custom clients | Architecture target | **Not yet published as validated** | Treat as compatibility targets until equivalent evidence exists. |
@@ -60,6 +61,33 @@ The final corrected enclosure was then completed/re-audited through Battenmark
 in ChatGPT Work and now passes the full benchmark. See:
 
 - [`docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md`](demos/orange-pi-4-pro-two-piece-2026-09-06.md)
+
+## OpenCode + local LLM proof details
+
+On 2026-09-07, OpenCode backed by a local model completed an independent
+Battenmark → FreeCAD/OpenCascade print-artifact workflow.
+
+The test artifact was a box-geometry Xbox controller cradle. The authoritative
+workflow reported **1 valid solid / 458,252 mm³**, then exported STL and 3MF.
+The STL was subsequently opened and sliced in ELEGOO Slicer for an ELEGOO
+Centauri with a 0.4 mm nozzle.
+
+Observed slicer result:
+
+- complete toolpath preview: **PASS**;
+- model filament: **171.21 g**;
+- total filament: **174.22 g**;
+- model printing time: **3 h 38 min**;
+- total estimated time: **3 h 39 min**;
+- support material under the selected settings: approximately **2.81 g**.
+
+The user intentionally did not print the holder. Therefore this is evidence for
+local-LLM client execution, authoritative CAD creation, export integrity and
+real slicer compatibility — **not** physical fit validation.
+
+See:
+
+- [`docs/demos/opencode-local-llm-xbox-holder-2026-09-07.md`](demos/opencode-local-llm-xbox-holder-2026-09-07.md)
 
 ## ChatGPT Work proof details
 
@@ -100,17 +128,21 @@ Overall corrected hard benchmark: **PASS**.
 
 ## Cross-client evidence interpretation
 
-The Orange Pi benchmark is useful because its history spans more than one
-validated client path:
+The current evidence now spans several distinct client paths and levels:
 
 1. Claude proved Battenmark MCP interoperability and completed the long initial
-   enclosure workflow.
-2. The PARTIAL result exposed genuine design and modeling issues.
+   Orange Pi enclosure workflow.
+2. The PARTIAL result exposed genuine design and modeling issues rather than
+   being hidden behind a generic success claim.
 3. ChatGPT Work reopened the same Battenmark project, corrected the defects,
    independently audited the exported 3MF and proved persistence/reopen.
+4. OpenCode with a local LLM independently created authoritative CAD through
+   Battenmark and produced an STL that a real desktop slicer accepted and sliced.
+5. Hermes separately provides stock-client protocol interoperability evidence.
 
-This is evidence for Battenmark as a persistent CAD execution layer rather than
-for one model having a private, client-specific CAD session.
+Together these results support Battenmark as a persistent, client-neutral CAD
+execution layer rather than a private CAD session coupled to one hosted model.
+They still do not imply equal reasoning quality across clients or models.
 
 ## Claim discipline
 
@@ -118,9 +150,12 @@ Use the narrowest accurate statement:
 
 - **Do say:** “Claude is a validated Battenmark MCP client and completed a nontrivial 50-revision FreeCAD/OpenCascade enclosure workflow.”
 - **Do say:** “ChatGPT Work completed the corrected Orange Pi enclosure as a full-fidelity Battenmark benchmark and also has physical-print proof on macOS.”
+- **Do say:** “OpenCode with the tested local-LLM setup created validated FreeCAD/OpenCascade CAD through Battenmark and produced an STL that ELEGOO Slicer successfully sliced.”
 - **Do say:** “Hermes has stock-client MCP interoperability evidence.”
 - **Do not say:** “Every LLM/agent works with Battenmark.”
+- **Do not say:** “All local LLMs are validated with Battenmark.”
 - **Do not equate:** protocol discovery with autonomous CAD quality.
+- **Do not equate:** slicer ingestion with physical fit or product-quality ergonomics.
 - **Do not equate:** valid B-rep geometry with specification-correct engineering design.
 - **Do not hide:** detected worker-sync or modeling failures merely because a final recovery succeeds.
 
