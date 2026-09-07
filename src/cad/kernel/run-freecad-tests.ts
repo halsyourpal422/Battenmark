@@ -108,19 +108,53 @@ async function main() {
   );
 
   out.push(
-    await run("validate", "B-rep validity of the box", async () => {
-      const { document } = applyAll(emptyDocument("vslice-box"), [
-        { op: "create_box", name: "base", length_mm: 80, width_mm: 50, height_mm: 12 },
+    await run("pocket-depth", "Pocket depth 3 → 6 rebuild/export/restart", async () => {
+      const { document, results } = applyAll(emptyDocument("pocket-depth-regression"), [
+        { op: "create_box", name: "Base", length_mm: 20, width_mm: 20, height_mm: 6 },
+        { op: "create_sketch", body_id: "Body", name: "VentSketch", plane: "XY", origin: { x: 5, y: 5, z: 0 } },
+        { op: "add_rectangle", sketch_id: "VentSketch", x_mm: 0, y_mm: 0, width_mm: 2, height_mm: 10 },
+        { op: "pocket", sketch_id: "VentSketch", name: "VentPocket", depth_mm: 3 },
       ]);
-      const v = await freeCadKernel.validate(document);
-      assert(v.valid, JSON.stringify(v.issues));
-      assert(v.solid_count === 1, "solid_count");
-      return `${v.shape_type} V=${v.volume_mm3} A=${v.surface_area_mm2}`;
+      assert(!results.find((r) => !r.ok), results.find((r) => !r.ok)?.error?.message ?? "ops");
+
+      const before = await freeCadKernel.inspect(document);
+      assert(before.valid, JSON.stringify(before.issues));
+      assert(approx(before.volume_mm3, 2340, 0.2), `3 mm pocket volume ${before.volume_mm3}`);
+
+      const changed = applyOperation(document, {
+        op: "set_feature_param",
+        feature_id: "VentPocket",
+        param: "depth",
+        value: 6,
+      });
+      assert(changed.result.ok, changed.result.error?.message ?? "set_feature_param failed");
+      const edited = changed.document;
+      const pocket = edited.features.find((f) => f.name === "VentPocket");
+      assert(pocket?.kind === "pocket" && pocket.depth === 6, "IR pocket depth did not update to 6 mm");
+
+      const after = await freeCadKernel.inspect(edited);
+      assert(after.valid, JSON.stringify(after.issues));
+      assert(approx(after.volume_mm3, 2280, 0.2), `6 mm pocket volume ${after.volume_mm3}`);
+
+      const step = await freeCadKernel.exportModel(edited, { format: "step", projectSlug: "pocket-depth-regression" });
+      const mf3 = await freeCadKernel.exportModel(edited, { format: "3mf", projectSlug: "pocket-depth-regression" });
+      assert(existsSync(step.path) && step.bytes > 0, "updated STEP missing");
+      assert(existsSync(mf3.path) && mf3.bytes > 0, "updated 3MF missing");
+      assert(step.validation?.valid, JSON.stringify(step.validation?.issues ?? []));
+      assert(mf3.validation?.valid, JSON.stringify(mf3.validation?.issues ?? []));
+      assert(approx(step.validation?.volume_mm3 ?? 0, 2280, 0.2), `STEP rebuild volume ${step.validation?.volume_mm3}`);
+      assert(approx(mf3.validation?.volume_mm3 ?? 0, 2280, 0.2), `3MF rebuild volume ${mf3.validation?.volume_mm3}`);
+
+      await worker.restart();
+      const reopened = await freeCadKernel.inspect(edited);
+      assert(reopened.valid, JSON.stringify(reopened.issues));
+      assert(approx(reopened.volume_mm3, 2280, 0.2), `post-restart volume ${reopened.volume_mm3}`);
+      return `V ${before.volume_mm3} → ${after.volume_mm3}; STEP/3MF/restart=${reopened.volume_mm3}`;
     }),
   );
 
   out.push(
-    await run("fillet-fail", "Impossible fillet is structured", async () => {
+    await run("validate", "B-rep validity of the box", async () => {
       const { document } = applyAll(emptyDocument("t"), [
         { op: "create_box", length_mm: 10, width_mm: 10, height_mm: 10 },
         { op: "fillet", body_id: "Body", radius_mm: 8 },
@@ -219,6 +253,7 @@ async function main() {
 
   void workspacePath;
   void slugify;
+  void CadWorkerError;
 
   let failed = 0;
   for (const r of out) {
