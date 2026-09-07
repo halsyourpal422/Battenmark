@@ -155,6 +155,18 @@ async function main() {
 
   out.push(
     await run("validate", "B-rep validity of the box", async () => {
+      const { document } = applyAll(emptyDocument("vslice-box"), [
+        { op: "create_box", name: "base", length_mm: 80, width_mm: 50, height_mm: 12 },
+      ]);
+      const v = await freeCadKernel.validate(document);
+      assert(v.valid, JSON.stringify(v.issues));
+      assert(v.solid_count === 1, "solid_count");
+      return `${v.shape_type} V=${v.volume_mm3} A=${v.surface_area_mm2}`;
+    }),
+  );
+
+  out.push(
+    await run("fillet-fail", "Impossible fillet is structured", async () => {
       const { document } = applyAll(emptyDocument("t"), [
         { op: "create_box", length_mm: 10, width_mm: 10, height_mm: 10 },
         { op: "fillet", body_id: "Body", radius_mm: 8 },
