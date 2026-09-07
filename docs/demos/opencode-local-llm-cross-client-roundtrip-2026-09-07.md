@@ -2,7 +2,7 @@
 
 ## Result
 
-**PASS — persisted cross-client project reopen, numeric edit, export, and multi-restart persistence.**
+**PASS — persisted cross-client project reopen, numeric edit, export, multi-restart persistence, and final slicer ingestion.**
 
 This benchmark continues the same `dog-xbox-controller-holder` project after it had already been created through the OpenCode/local-model path and then visually corrected in ChatGPT Work.
 
@@ -28,6 +28,12 @@ FreeCAD / OpenCascade
         │
         ▼
 OpenCode + local LLM numeric edit
+        │
+        ▼
+ STL / 3MF / STEP
+        │
+        ▼
+ ELEGOO Slicer
 ```
 
 No direct FreeCAD, FreeCADCmd, Python FreeCAD module, or manual CAD-file bypass was used.
@@ -115,6 +121,23 @@ Every export reported the same authoritative result:
 - bbox **(0, -14, 0) → (190, 182, 92) mm**;
 - no authoritative OCC issues.
 
+## Final ELEGOO Slicer confirmation
+
+The final local-model revision was subsequently opened in ELEGOO Slicer and successfully sliced on the visible **ELEGOO Centauri / 0.4 mm nozzle / 0.20 mm Standard** setup.
+
+Observed final toolpath result:
+
+- complete slicer preview: **PASS**;
+- model filament: **82.92 m / 249.32 g**;
+- total filament: **86.74 m / 260.80 g**;
+- support: approximately **11.11 g** plus **0.37 g support interface**;
+- model printing time: **5 h 53 min**;
+- total estimated time: **5 h 54 min**.
+
+The recognizable dog form introduced during the ChatGPT Work visual-correction pass remained intact after the local model's subsequent numeric engineering edits. This is important: the local client was able to modify operative persisted features without visually destroying the cross-client design state.
+
+The slicer numbers also reinforce that CAD solid volume and FDM filament usage are different measurements. The final authoritative OCC solid volume decreased from the ChatGPT Work state, while the visible slicer model-filament estimate did not decrease proportionally. Perimeters, infill, cavities, support, and toolpath generation affect real print-material estimates, so slicer/toolpath data should remain the authority for print consumption rather than raw B-rep volume alone.
+
 ## Failures and recovery
 
 Two failure classes were preserved rather than hidden:
@@ -136,6 +159,8 @@ This benchmark qualifies as:
 - STL export: **PASS**;
 - 3MF export: **PASS**;
 - STEP export: **PASS**;
+- final downstream slicer ingestion: **PASS**;
+- visual form preserved across local numeric edit: **PASS**;
 - multi-restart persistence: **PASS**;
 - direct FreeCAD bypass: **NO**.
 
@@ -143,7 +168,7 @@ This benchmark qualifies as:
 
 The strongest result is not the individual +2 mm diameter edits. It is the project continuity:
 
-> a local model created the project, ChatGPT Work reopened and visually corrected the same persisted project, then the local model reopened that revised project again, identified the operative feature chain, made exact numeric edits, exported standard CAD/print formats, and reproduced the final geometry after multiple worker restarts.
+> a local model created the project, ChatGPT Work reopened and visually corrected the same persisted project, then the local model reopened that revised project again, identified the operative feature chain, made exact numeric edits, exported standard CAD/print formats, reproduced the final geometry after multiple worker restarts, and produced a final artifact that a real desktop slicer accepted without losing the revised visual form.
 
 That is strong evidence for Battenmark as a persistent client-neutral CAD execution layer rather than a model-specific transient session.
 
