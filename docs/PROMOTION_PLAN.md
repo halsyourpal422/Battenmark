@@ -17,7 +17,9 @@ benchmark:
    - worker restart/recovery;
    - validation;
    - FCStd / STEP / STL / 3MF export;
-   - successful physical print of a **60 × 25 × 4 mm** calibration coupon with nominal **3 / 4 / 5 mm** holes.
+   - successful physical print of a **60 × 25 × 4 mm** calibration coupon with nominal **3 / 4 / 5 mm** holes;
+   - later vision-assisted render → inspect → correct workflow on an existing persisted dog-shaped controller-holder project;
+   - fresh-process persistence after iterative correction: PASS.
 
 2. **Claude via MCP → Battenmark → FreeCAD 1.1.3 / OpenCascade.**
    - 75-tool discovery smoke proof;
@@ -30,6 +32,7 @@ benchmark:
    - STL and 3MF export: PASS;
    - STL accepted and fully sliced by ELEGOO Slicer;
    - visible slicer result: **171.21 g model / 174.22 g total / 3 h 39 min**;
+   - second dog-shaped stress test also passed CAD/export/slicer execution but reached only PARTIAL organic visual fidelity;
    - physical print intentionally not performed;
    - physical Xbox-controller fit/ergonomics therefore remain unvalidated.
 
@@ -71,6 +74,8 @@ validated client interoperability is an evidence claim.
 - [x] Claude tiny MCP interoperability proof completed.
 - [x] Claude 50-revision hard enclosure workflow completed through Battenmark only.
 - [x] OpenCode + tested local-LLM CAD/export/slicer interoperability proof completed.
+- [x] Local-model organic-form stress test documented separately from CAD execution quality.
+- [x] ChatGPT Work vision-assisted correction of that persisted dog-holder project completed with authoritative OCC validation and fresh-process persistence.
 - [x] Initial PARTIAL hard-test audit documented rather than hidden.
 - [x] Solid lid plug corrected to hollow perimeter friction rim.
 - [x] Blind vents corrected to true through-vents.
@@ -120,7 +125,7 @@ Preferred short description:
 
 Preferred proof statement:
 
-> ChatGPT Work has a physical-output Battenmark proof on macOS, Claude is a validated Battenmark MCP client that completed the original 50-revision Orange Pi workflow, OpenCode with the tested local-LLM setup produced validated FreeCAD/OpenCascade CAD and an STL successfully sliced in ELEGOO Slicer, and the corrected two-piece Orange Pi 4 Pro enclosure passes geometry, specification-fidelity, export and persistence checks entirely through Battenmark.
+> ChatGPT Work has physical-output, full-fidelity and vision-assisted iterative-correction Battenmark proof on macOS; Claude is a validated Battenmark MCP client that completed the original 50-revision Orange Pi workflow; OpenCode with the tested local-LLM setup produced validated FreeCAD/OpenCascade CAD and slicer-ready STL/3MF artifacts; and the corrected two-piece Orange Pi 4 Pro enclosure passes geometry, specification-fidelity, export and persistence checks entirely through Battenmark.
 
 Avoid broad claims such as “works with every LLM” or “all local models work”
 until those paths have been validated through Battenmark itself.
@@ -128,11 +133,12 @@ until those paths have been validated through Battenmark itself.
 ## Demo hierarchy
 
 1. **Hard real-world benchmark:** corrected Orange Pi 4 Pro two-piece enclosure — **PASS**.
-2. **Physical proof:** calibration coupon — simple, understandable, physically printed.
-3. **Local-LLM interoperability proof:** OpenCode → Battenmark → FreeCAD/OpenCascade → ELEGOO Slicer.
-4. **Iterative CAD edit:** requirement change followed by rebuild and validation.
-5. **Round-trip engineering:** import → inspect → modify → export.
-6. **Assembly / diagnostics:** constrained multi-part example where supported.
+2. **Vision-assisted same-project correction:** local-model dog holder → ChatGPT Work render-inspect-correct loop → one valid persisted OCC solid.
+3. **Physical proof:** calibration coupon — simple, understandable, physically printed.
+4. **Local-LLM interoperability proof:** OpenCode → Battenmark → FreeCAD/OpenCascade → ELEGOO Slicer.
+5. **Iterative CAD edit:** requirement change followed by rebuild and validation.
+6. **Round-trip engineering:** import → inspect → modify → export.
+7. **Assembly / diagnostics:** constrained multi-part example where supported.
 
 Every public demo should preserve:
 
@@ -196,6 +202,14 @@ same authoritative CAD backend and produce a normal slicer-ingestible artifact.
 Keep that claim scoped to the tested setup rather than generalizing to all local
 models.
 
+The dog-holder pair adds a third story that is useful precisely because it is not
+just another PASS. The local model successfully executed the CAD but showed a
+lower ceiling in organic-form quality. ChatGPT Work then reopened the same
+persisted project, used rendered visual feedback to make iterative corrections,
+rolled back failed boolean experiments, and still finished with one valid OCC
+solid plus verified exports and fresh-process persistence. This separates the
+CAD execution layer from the model/feedback loop driving design quality.
+
 Target communities after P0 presentation checks close:
 
 - FreeCAD forum/community spaces;
@@ -214,10 +228,13 @@ Suggested starter set:
 - iterative dimension change after initial build;
 - imported STEP modification;
 - export to STEP + STL/3MF;
-- deliberate worker restart and recovery.
+- deliberate worker restart and recovery;
+- same-project visual correction where the client supports rendered-image inspection.
 
 Record pass/fail, number of corrective turns, geometry validity, rebuild status,
 export success, **specification fidelity**, measurement source and tester notes.
+For visual-form tests, record visual assessment separately from geometry validity
+and do not collapse subjective form quality into a generic CAD PASS/FAIL score.
 
 ## Promotion guardrails
 
@@ -227,6 +244,8 @@ export success, **specification fidelity**, measurement source and tester notes.
 - Protocol/tool discovery is not autonomous CAD quality.
 - Slicer ingestion is not physical-fit validation.
 - Valid B-rep geometry is not the same as a correct mechanical design.
+- Valid B-rep geometry is not the same as strong organic/aesthetic form.
+- A model's visual self-assessment is not an objective aesthetic score.
 - Export fidelity is not the same as specification correctness.
 - Do not hide failed tests; useful failures become benchmark material.
 - Do not convert an observed discrepancy into a root-cause claim before reproduction.
