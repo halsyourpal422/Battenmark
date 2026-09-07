@@ -41,10 +41,12 @@ Battenmark also has a physical-output proof: ChatGPT Work created and exported a
 60×25×4 mm calibration coupon with nominal 3/4/5 mm holes that was physically
 printed.
 
-One real platform defect remains from the enclosure correction: editing an
-existing pocket's depth could update metadata without reliably rebuilding the
-worker geometry. Recreating the stale pocket through Battenmark fixed the model;
-that synchronization issue is being tracked separately.
+The vent correction also exposed a feature-history discrepancy that is still
+being investigated. A focused real-FreeCAD regression on current `main` shows
+ordinary existing-pocket depth edits rebuild, export and survive worker restart
+correctly, so the remaining question is narrower: the Orange Pi six-profile vent
+sketch and surrounding lid feature order. That investigation is tracked as
+issue #26 rather than being presented as a confirmed generic worker-sync bug.
 
 I would especially value feedback from FreeCAD developers, CAD automation users,
 mechanical engineers and people building agent toolchains. Reproducible failures
@@ -81,8 +83,10 @@ geometry. The corrected lid volume matches its analytical design essentially
 exactly, and persistence/reopen passed through a fresh stdio MCP process.
 
 The full benchmark now passes, while the original failure history remains in the
-repo. The correction also exposed a worker synchronization bug involving edited
-pocket depth, which is being kept as a regression target rather than hidden.
+repo. One observed vent-edit discrepancy is still under investigation as issue
+#26. A focused real-FreeCAD regression shows generic pocket-depth edits behave
+correctly, so the remaining target is the Orange Pi model's multi-profile sketch
+and feature-history semantics rather than a claimed generic synchronization bug.
 
 I am specifically interested in FreeCAD-oriented criticism: topology/selector
 failure cases, model-history assumptions, import/export edge cases, assembly
