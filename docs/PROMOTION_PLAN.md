@@ -8,7 +8,8 @@ broader provider/client support as architecture or future validation work.
 
 ## Current verified story
 
-Battenmark now has two strong client paths plus one completed hard benchmark:
+Battenmark now has three end-to-end client paths plus one completed hard
+benchmark:
 
 1. **ChatGPT Work on macOS → Battenmark → FreeCAD 1.1.3 / OpenCascade → CAD exports → physical 3D print.**
    - geometry creation;
@@ -24,7 +25,15 @@ Battenmark now has two strong client paths plus one completed hard benchmark:
    - full initial two-piece Orange Pi 4 Pro workflow through Battenmark only;
    - persistence/reopen across a 50-revision engineering session.
 
-3. **Corrected Orange Pi 4 Pro full-fidelity benchmark — PASS.**
+3. **OpenCode + tested local LLM → Battenmark → FreeCAD/OpenCascade → STL/3MF → ELEGOO Slicer.**
+   - authoritative rebuild: **1 valid solid / 458,252 mm³**;
+   - STL and 3MF export: PASS;
+   - STL accepted and fully sliced by ELEGOO Slicer;
+   - visible slicer result: **171.21 g model / 174.22 g total / 3 h 39 min**;
+   - physical print intentionally not performed;
+   - physical Xbox-controller fit/ergonomics therefore remain unvalidated.
+
+4. **Corrected Orange Pi 4 Pro full-fidelity benchmark — PASS.**
    - final corrected lid rim: **90.6 × 57.6 mm outer, 85.8 × 52.8 mm inner, 2.4 mm walls**;
    - six true **2.4 × 55 mm** through-vents;
    - final 3MF: **2 watertight manifold objects**;
@@ -61,6 +70,7 @@ validated client interoperability is an evidence claim.
 - [x] ChatGPT Work physical-output proof completed.
 - [x] Claude tiny MCP interoperability proof completed.
 - [x] Claude 50-revision hard enclosure workflow completed through Battenmark only.
+- [x] OpenCode + tested local-LLM CAD/export/slicer interoperability proof completed.
 - [x] Initial PARTIAL hard-test audit documented rather than hidden.
 - [x] Solid lid plug corrected to hollow perimeter friction rim.
 - [x] Blind vents corrected to true through-vents.
@@ -110,18 +120,19 @@ Preferred short description:
 
 Preferred proof statement:
 
-> ChatGPT Work has a physical-output Battenmark proof on macOS, Claude is a validated Battenmark MCP client that completed the original 50-revision Orange Pi workflow, and the corrected two-piece Orange Pi 4 Pro enclosure now passes geometry, specification-fidelity, export and persistence checks entirely through Battenmark.
+> ChatGPT Work has a physical-output Battenmark proof on macOS, Claude is a validated Battenmark MCP client that completed the original 50-revision Orange Pi workflow, OpenCode with the tested local-LLM setup produced validated FreeCAD/OpenCascade CAD and an STL successfully sliced in ELEGOO Slicer, and the corrected two-piece Orange Pi 4 Pro enclosure passes geometry, specification-fidelity, export and persistence checks entirely through Battenmark.
 
-Avoid broad claims such as “works with every LLM” until those paths have been
-validated through Battenmark itself.
+Avoid broad claims such as “works with every LLM” or “all local models work”
+until those paths have been validated through Battenmark itself.
 
 ## Demo hierarchy
 
 1. **Hard real-world benchmark:** corrected Orange Pi 4 Pro two-piece enclosure — **PASS**.
 2. **Physical proof:** calibration coupon — simple, understandable, physically printed.
-3. **Iterative CAD edit:** requirement change followed by rebuild and validation.
-4. **Round-trip engineering:** import → inspect → modify → export.
-5. **Assembly / diagnostics:** constrained multi-part example where supported.
+3. **Local-LLM interoperability proof:** OpenCode → Battenmark → FreeCAD/OpenCascade → ELEGOO Slicer.
+4. **Iterative CAD edit:** requirement change followed by rebuild and validation.
+5. **Round-trip engineering:** import → inspect → modify → export.
+6. **Assembly / diagnostics:** constrained multi-part example where supported.
 
 Every public demo should preserve:
 
@@ -179,6 +190,12 @@ corrected PASS. It demonstrates the difference between:
 - actual engineering/specification correctness;
 - and recovery from detected modeling failures.
 
+The OpenCode/local-LLM result adds a second kind of launch story: Battenmark is
+not limited to one hosted AI client, and a tested local-model setup can reach the
+same authoritative CAD backend and produce a normal slicer-ingestible artifact.
+Keep that claim scoped to the tested setup rather than generalizing to all local
+models.
+
 Target communities after P0 presentation checks close:
 
 - FreeCAD forum/community spaces;
@@ -208,6 +225,7 @@ export success, **specification fidelity**, measurement source and tester notes.
 - Battenmark is the interface under test; direct FreeCAD control is not a substitute.
 - Keep public compatibility claims at the exact evidence level achieved by each client.
 - Protocol/tool discovery is not autonomous CAD quality.
+- Slicer ingestion is not physical-fit validation.
 - Valid B-rep geometry is not the same as a correct mechanical design.
 - Export fidelity is not the same as specification correctness.
 - Do not hide failed tests; useful failures become benchmark material.
