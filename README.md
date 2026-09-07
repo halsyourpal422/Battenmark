@@ -20,7 +20,7 @@ interchangeable CAD backends. Callers request `create_hole` — never
 
 ## Verified client evidence
 
-As of **September 6, 2026**, two agent/client paths have published Battenmark
+As of **September 7, 2026**, two agent/client paths have published Battenmark
 proof rather than being treated only as compatibility targets.
 
 ### ChatGPT Work on macOS — full-fidelity + physical-output proof
@@ -197,10 +197,13 @@ This is pre-1.0 alpha software; APIs may change.
 - Bodies carrying non-manifold-edge warnings can produce **unreliable B-rep volume
   integrals**; benchmark evidence should cross-check mesh/analytical volume rather
   than treating a raw OpenCascade volume number as ground truth in that condition
-- A real Orange Pi correction run exposed [issue #26](https://github.com/halsyourpal422/Battenmark/issues/26):
-  editing an existing pocket depth updated metadata without reliably rebuilding
-  the worker geometry; deleting/recreating the stale pocket through Battenmark
-  produced the correct persisted/exported shape
+- The Orange Pi correction exposed an unresolved feature-history discrepancy tracked
+  in [issue #26](https://github.com/halsyourpal422/Battenmark/issues/26). A focused
+  real-FreeCAD regression on current `main` shows ordinary existing-pocket depth
+  edits rebuild, export and survive worker restart correctly. The remaining
+  investigation is specific to the benchmark's multi-profile vent sketch and
+  surrounding feature history; it is **not** currently established as a generic
+  Battenmark worker-synchronization defect.
 - One serialized FreeCAD worker (no pooling)
 - Preview rendering is JSCAD, not OCC hidden-line
 - Complete topological naming is not solved; persistent `gref` mitigates it
