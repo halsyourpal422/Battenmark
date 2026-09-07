@@ -22,7 +22,7 @@ This page records the current evidence level for agent/client integrations.
 | --- | --- | --- | --- |
 | **ChatGPT Work on macOS** | Full-fidelity hard benchmark + physical-output proof | **PASS** | Proven through Battenmark to FreeCAD 1.1.3/OpenCascade with real geometry, rebuild, correction, FCStd/STEP/STL/3MF export, persistence/reopen, independent 3MF audit, and an earlier physically printed calibration coupon. |
 | **Claude via MCP stdio** | End-to-end CAD workflow + interoperability proof | **PASS** | Tiny proof: 75-tool discovery, `kernel_status`, 20×15×5 mm solid, valid OCC rebuild, 1 solid, 1,500 mm³, cleanup, no direct FreeCAD bypass. Claude also completed the original 50-revision two-piece Orange Pi workflow through Battenmark only. The final corrected enclosure was subsequently audited to full PASS in ChatGPT Work. |
-| **OpenCode + local LLM** | End-to-end CAD workflow + downstream slicer ingestion | **PASS** | Created and validated a one-solid Xbox controller holder through Battenmark → FreeCAD/OpenCascade, exported STL/3MF, and the STL was accepted and fully sliced in ELEGOO Slicer. The artifact was intentionally not printed, so physical fit/ergonomics remain unvalidated. |
+| **OpenCode + local LLM** | End-to-end CAD workflow + downstream slicer ingestion | **PASS** | Two independent artifacts now validate the path. A simple Xbox cradle sliced successfully; a harder dog-shaped holder also rebuilt/exported/sliced successfully but achieved only PARTIAL organic/aesthetic fidelity. This distinguishes Battenmark execution capability from the driving model's visual-design capability. |
 | **Hermes 0.20.5 stock MCP client** | Protocol/client proof | **PASS** | Stock client discovered 75/75 tools and completed two clean 13/13 assembly/control runs with export and structured-error recovery. This is protocol/client interoperability evidence, not a claim of autonomous model-quality parity. |
 | **Agent Zero** | Source-level assessment only | **UNVALIDATED as direct Battenmark client** | No direct MCP client was available in the assessed version; no bridge was added merely to manufacture a compatibility claim. |
 | Other agents / IDEs / custom clients | Architecture target | **Not yet published as validated** | Treat as compatibility targets until equivalent evidence exists. |
@@ -64,6 +64,8 @@ in ChatGPT Work and now passes the full benchmark. See:
 
 ## OpenCode + local LLM proof details
 
+### Xbox cradle interoperability proof
+
 On 2026-09-07, OpenCode backed by a local model completed an independent
 Battenmark → FreeCAD/OpenCascade print-artifact workflow.
 
@@ -88,6 +90,37 @@ real slicer compatibility — **not** physical fit validation.
 See:
 
 - [`docs/demos/opencode-local-llm-xbox-holder-2026-09-07.md`](demos/opencode-local-llm-xbox-holder-2026-09-07.md)
+
+### Dog-shaped holder visual/form stress test
+
+A second test deliberately pushed the same OpenCode/local-model path away from
+simple mechanical box geometry and toward an organic/aesthetic target: a
+dog-shaped Xbox controller holder built from CSG primitives and booleans.
+
+The model reported **17 features / 15 boolean operations**, one valid
+**873,640 mm³** solid, and successful STL/3MF export. ELEGOO Slicer accepted the
+artifact and generated a complete toolpath:
+
+- model filament: **294.78 g**;
+- total filament: **308.58 g**;
+- support material: approximately **13.38 g**;
+- estimated time: **6 h 40 min**.
+
+The CAD execution path therefore remained **PASS**, while visual inspection of
+the slicer preview rated the intended dog form only **PARTIAL**: the result read
+more like a functional holder/block with dog-like primitive cues than a cohesive
+animal sculpture.
+
+This is a useful capability boundary rather than a Battenmark failure. The local
+model was able to drive dimensions, coordinates, holes, cavities and booleans
+through Battenmark, but it showed weaker visual/spatial judgment for organic
+proportion and form continuity. The model's earlier rough material estimate of
+about 1.1 kg was also superseded by the slicer's approximately **308.58 g total**
+toolpath estimate.
+
+See:
+
+- [`docs/demos/opencode-local-llm-dog-holder-2026-09-07.md`](demos/opencode-local-llm-dog-holder-2026-09-07.md)
 
 ## ChatGPT Work proof details
 
@@ -137,8 +170,11 @@ The current evidence now spans several distinct client paths and levels:
 3. ChatGPT Work reopened the same Battenmark project, corrected the defects,
    independently audited the exported 3MF and proved persistence/reopen.
 4. OpenCode with a local LLM independently created authoritative CAD through
-   Battenmark and produced an STL that a real desktop slicer accepted and sliced.
-5. Hermes separately provides stock-client protocol interoperability evidence.
+   Battenmark and produced STL/3MF artifacts that a real desktop slicer accepted.
+5. A second local-model stress test preserved valid CAD execution while exposing
+   a lower ceiling in organic/aesthetic design quality, separating model
+   intelligence from Battenmark execution quality.
+6. Hermes separately provides stock-client protocol interoperability evidence.
 
 Together these results support Battenmark as a persistent, client-neutral CAD
 execution layer rather than a private CAD session coupled to one hosted model.
@@ -150,12 +186,14 @@ Use the narrowest accurate statement:
 
 - **Do say:** “Claude is a validated Battenmark MCP client and completed a nontrivial 50-revision FreeCAD/OpenCascade enclosure workflow.”
 - **Do say:** “ChatGPT Work completed the corrected Orange Pi enclosure as a full-fidelity Battenmark benchmark and also has physical-print proof on macOS.”
-- **Do say:** “OpenCode with the tested local-LLM setup created validated FreeCAD/OpenCascade CAD through Battenmark and produced an STL that ELEGOO Slicer successfully sliced.”
+- **Do say:** “OpenCode with the tested local-LLM setup created validated FreeCAD/OpenCascade CAD through Battenmark and produced artifacts that ELEGOO Slicer successfully sliced.”
+- **Do say:** “The local-model dog-holder stress test passed CAD execution while showing weaker organic visual/form reasoning.”
 - **Do say:** “Hermes has stock-client MCP interoperability evidence.”
 - **Do not say:** “Every LLM/agent works with Battenmark.”
 - **Do not say:** “All local LLMs are validated with Battenmark.”
 - **Do not equate:** protocol discovery with autonomous CAD quality.
 - **Do not equate:** slicer ingestion with physical fit or product-quality ergonomics.
+- **Do not equate:** valid B-rep geometry with strong visual/aesthetic design.
 - **Do not equate:** valid B-rep geometry with specification-correct engineering design.
 - **Do not hide:** detected worker-sync or modeling failures merely because a final recovery succeeds.
 
