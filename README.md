@@ -20,8 +20,9 @@ interchangeable CAD backends. Callers request `create_hole` — never
 
 ## Verified client evidence
 
-As of **September 7, 2026**, two agent/client paths have published Battenmark
-proof rather than being treated only as compatibility targets.
+As of **September 7, 2026**, three agent/client paths have published end-to-end
+Battenmark CAD proof rather than being treated only as compatibility targets.
+Hermes also has separate stock-client protocol interoperability evidence.
 
 ### ChatGPT Work on macOS — full-fidelity + physical-output proof
 
@@ -79,7 +80,22 @@ correctly published as PARTIAL because it exposed real lid-rim and vent defects.
 Those defects became the correction benchmark that was subsequently completed to
 PASS in ChatGPT Work.
 
-See [client validation evidence](docs/CLIENT_VALIDATION.md) and the
+### OpenCode + local LLM — end-to-end CAD + slicer proof
+
+OpenCode backed by the tested local model setup independently drove Battenmark
+into FreeCAD/OpenCascade to create an Xbox controller holder. The authoritative
+workflow reported **1 valid solid / 458,252 mm³**, exported STL and 3MF, and the
+STL was successfully opened and sliced in ELEGOO Slicer for an ELEGOO Centauri
+with a 0.4 mm nozzle.
+
+Observed slicer result: **171.21 g model filament, 174.22 g total filament,
+3 h 39 min total estimated print time**. The holder was intentionally not
+printed, so this proves CAD execution/export/slicer interoperability — not
+physical controller fit or ergonomics.
+
+See [client validation evidence](docs/CLIENT_VALIDATION.md), the
+[OpenCode local-LLM slicer proof](docs/demos/opencode-local-llm-xbox-holder-2026-09-07.md),
+and the
 [corrected Orange Pi hard benchmark](docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md).
 
 Battenmark is intentionally provider-neutral. Other LLM clients/providers should
@@ -221,7 +237,7 @@ Full list: [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 | Service & persistence | [docs/SERVICE.md](docs/SERVICE.md) · [docs/AUTH.md](docs/AUTH.md) |
 | Import / export & preview | [docs/IMPORT.md](docs/IMPORT.md) · [docs/PREVIEW.md](docs/PREVIEW.md) |
 | Platforms & validation | [docs/MACOS.md](docs/MACOS.md) · [docs/LINUX.md](docs/LINUX.md) · [docs/RELEASE.md](docs/RELEASE.md) |
-| Hard benchmark | [docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md](docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md) |
+| Validation benchmarks | [OpenCode local-LLM slicer proof](docs/demos/opencode-local-llm-xbox-holder-2026-09-07.md) · [Orange Pi hard benchmark](docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md) |
 | Public promotion / adoption | [docs/PROMOTION_PLAN.md](docs/PROMOTION_PLAN.md) |
 
 ## Compatibility identifiers
