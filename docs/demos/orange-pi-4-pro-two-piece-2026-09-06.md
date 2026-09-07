@@ -76,15 +76,15 @@ The former full-area solid plug is absent in the final model.
 
 ### 2. Blind vents → true through-vents
 
-An attempted edit of the existing vent pocket exposed a Battenmark worker
-synchronization defect: the feature metadata changed from a 3 mm depth to 6 mm,
-but exported geometry still retained portions of the old `z=3` slot floors at
-the rim.
+During correction, increasing the existing vent pocket metadata from 3 mm to
+6 mm did not produce the intended final through-vent result in the surrounding
+rim geometry. At the time, the observation looked like a worker-synchronization
+problem because portions of the old `z=3` slot-floor geometry remained visible.
 
 Recovery remained entirely inside Battenmark:
 
 1. save checkpoint `rev_ghp0vc`;
-2. delete only the stale `Vent_Slots` pocket;
+2. delete only the earlier `Vent_Slots` pocket;
 3. reuse the existing six-profile vent sketch;
 4. create a new `Vent_ThroughSlots` pocket with **6 mm** depth after the hollow-rim feature;
 5. rebuild, validate and export again.
@@ -103,6 +103,31 @@ Final vent state:
 - solid plug: **absent**;
 - blind floors: **absent**;
 - airflow path from exterior to enclosure interior: **present**.
+
+### 3. Post-benchmark investigation of the vent edit
+
+PR #27 later added a focused authoritative FreeCAD regression on current `main`.
+It creates a 20 × 20 × 6 mm solid with a 3 mm pocket, changes that *existing*
+pocket to 6 mm through `set_feature_param`, then verifies:
+
+- Battenmark IR depth changes to 6 mm;
+- fresh FreeCAD rebuild volume changes from 2340 to 2280 mm³;
+- STEP export reflects the 6 mm result;
+- 3MF export reflects the 6 mm result;
+- the same edited document rebuilds identically after a worker restart.
+
+The full CI suite passed and no production code was changed. That means the
+broad synchronization diagnosis is **not reproduced by ordinary pocket-depth
+editing on current `main`**.
+
+Recreating `Vent_ThroughSlots` after `Plug_Hollow` changed feature history as
+well as depth, so the benchmark recovery does not by itself prove stale worker
+state. GitHub issue #26 remains open to reproduce the actual complex chain:
+six-profile vent sketch, hollow-rim feature, feature ordering, pocket
+direction/placement and any downstream lid operations.
+
+This clarification does not change the final benchmark result. It changes only
+the claimed root cause of the intermediate discrepancy.
 
 ## Final body audit
 
@@ -250,18 +275,25 @@ Supports are not expected for either piece under normal FDM bridging settings.
 The base port bridges should still be inspected in the slicer for the selected
 material, layer height and bridging profile.
 
-## Known implementation issue exposed by the pass
+## Open implementation investigation exposed by the pass
 
-The final benchmark passes, but it exposed a real Battenmark implementation
-issue worth tracking independently:
+The final benchmark passes, but the vent-edit discrepancy remains useful
+engineering evidence.
 
-> Editing an existing pocket's depth can update Battenmark metadata without
-> reliably rebuilding the corresponding worker geometry. Replacing the stale
-> pocket through Battenmark produced the correct persisted/exported result.
+The current evidence does **not** establish that generic pocket-depth edits can
+silently diverge from authoritative worker geometry. PR #27 demonstrates the
+opposite for a focused real-FreeCAD case: IR, rebuild, STEP, 3MF and post-restart
+geometry all follow the edited depth correctly.
 
-This is a platform regression candidate. It does **not** invalidate the final
-benchmark because the defect was detected, recovered through Battenmark only,
-and the resulting geometry was independently re-audited.
+Issue #26 therefore remains a narrower complex-model investigation. The leading
+questions are feature-order semantics, the six-profile vent sketch, the timing
+of `Plug_Hollow`, and pocket direction/placement. The recovery path recreated the
+vent pocket later in feature history, so depth and feature order changed at the
+same time.
+
+The benchmark remains **PASS** because the final required geometry was produced
+through Battenmark only and independently re-audited. The investigation affects
+the diagnosis of the intermediate failure, not the final result.
 
 ## Final classification
 
