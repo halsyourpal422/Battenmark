@@ -1,6 +1,6 @@
 # Battenmark Correction Queue
 
-Status: 2026-09-06 — **P0 Orange Pi correction CLOSED**
+Status: 2026-09-07 — **P0 Orange Pi correction CLOSED**
 
 The Orange Pi 4 Pro two-piece enclosure correction task is complete. The hard
 benchmark has moved from **PARTIAL / CAD_CORRECTION_REQUIRED** to **PASS**.
@@ -48,21 +48,30 @@ Final geometry:
 
 See `docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md`.
 
-## New engineering regression item
+## Open engineering investigation
 
-The correction exposed a separate Battenmark platform issue:
+The correction also exposed a discrepancy that remains worth reproducing, but
+PR #27 narrowed its interpretation substantially.
 
-> Editing an existing pocket depth updated Battenmark metadata from 3 mm to 6 mm
-> without reliably rebuilding the worker geometry. Deleting/recreating only the
-> stale pocket through Battenmark produced the correct persisted/exported shape.
+A focused authoritative FreeCAD regression on current `main` creates a pocket,
+changes its depth from 3 mm to 6 mm through `set_feature_param`, and confirms the
+updated result in the Battenmark IR, fresh FreeCAD rebuild, STEP export, 3MF
+export and after a worker restart. The full CI suite passed without any
+production-code change.
 
-This is now a platform bug/regression candidate and should be fixed independently
-of the completed enclosure benchmark.
+Therefore the Orange Pi observation is **not established as a generic pocket
+synchronization bug**. Recreating `Vent_ThroughSlots` after `Plug_Hollow` changed
+feature history as well as pocket depth. The remaining issue is to reproduce the
+benchmark's six-profile vent sketch plus surrounding lid feature history and
+identify whether the cause is feature-order semantics, multi-profile behavior,
+direction/placement or a genuine complex-model rebuild defect.
+
+Track the investigation in GitHub issue #26.
 
 ## Promotion dependency
 
 The Orange Pi CAD correction is **no longer a blocker** for PR #25.
 
-Remaining promotion work is presentation/readiness work: final CI, refreshed
-hero/social assets around the corrected PASS, flagship demo packaging, and
-public launch sequencing.
+The promotion branch now has corrected evidence wording, approved brand/media
+assets and a completed benchmark package. The remaining gate is current-head CI
+and merge readiness.
