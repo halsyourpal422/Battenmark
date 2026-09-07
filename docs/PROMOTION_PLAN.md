@@ -1,6 +1,6 @@
 # Battenmark Public Promotion & Adoption Plan
 
-Status date: 2026-09-06
+Status date: 2026-09-07
 
 This plan separates **verified Battenmark evidence** from future compatibility
 targets. Public claims should describe what has actually been proven, then label
@@ -53,10 +53,10 @@ validated client interoperability is an evidence claim.
 - [x] Repository is public.
 - [x] Apache-2.0 license, notices, security and contribution docs exist.
 - [x] Canonical demo evidence is in the repository.
-- [x] GitHub hero media exists.
-- [x] Social-preview media exists.
-- [x] Approved geometric Battenmark B mark uploaded into `media/brand/`.
-- [x] Approved horizontal Battenmark lockup integrated at the top of the README.
+- [x] Approved geometric Battenmark B mark is in `media/brand/`.
+- [x] Approved horizontal Battenmark lockup is integrated at the top of the README.
+- [x] GitHub hero uses corrected Orange Pi PASS evidence.
+- [x] Social-preview media uses approved branding and corrected benchmark evidence.
 - [x] README distinguishes validated client paths from general client-neutral architecture.
 - [x] ChatGPT Work physical-output proof completed.
 - [x] Claude tiny MCP interoperability proof completed.
@@ -69,8 +69,9 @@ validated client interoperability is an evidence claim.
 - [x] Final 3MF independently audited: two watertight manifold objects, no phantom geometry.
 - [x] Fresh-process persistence/reopen verified.
 - [x] Hard benchmark promoted to **PASS**.
-- [ ] Refresh GitHub hero/social-preview around the corrected PASS and approved branding.
-- [ ] Verify final CI/checks on the promotion branch.
+- [x] Issue #26 wording corrected after the focused real-FreeCAD regression on current `main`.
+- [ ] Verify CI/checks on the latest promotion-branch head.
+- [ ] Merge PR #25 when current-head CI and mergeability are green.
 
 A physical Orange Pi enclosure print is useful next-stage fit/assembly evidence,
 but it is **not required to establish the CAD execution benchmark**, because the
@@ -81,9 +82,8 @@ final CAD, analytical geometry, export and persistence evidence already pass.
 - [ ] Flagship 60–90 second demo video produced.
 - [ ] 3–5 polished public demo pages selected.
 - [ ] `Made with Battenmark` gallery created.
-- [x] Public benchmark/result format now separates geometry, export, persistence and spec-fidelity scoring.
+- [x] Public benchmark/result format separates geometry, export, persistence and spec-fidelity scoring.
 - [ ] Simple Battenmark landing page published.
-- [ ] GitHub social preview updated with approved brand asset and corrected hard benchmark.
 - [ ] Repository topics finalized: `freecad`, `cad`, `3d-printing`, `llm`, `ai`, `open-source`, `mcp`, `agents`, `opencascade`.
 
 ### P2 — community launch
@@ -141,16 +141,25 @@ If a body carries non-manifold-edge warnings, do **not** automatically treat the
 raw OpenCascade B-rep volume integral as ground truth. Cross-check mesh and/or
 analytical volume and publish the discrepancy.
 
-## Engineering issue preserved from the PASS
+## Engineering investigation preserved from the PASS
 
-The corrected benchmark exposed a worker synchronization defect:
+The corrected benchmark exposed an important discrepancy during the vent edit,
+but the broad original diagnosis has been narrowed by PR #27.
 
-> Editing an existing pocket depth updated Battenmark metadata without reliably
-> rebuilding the worker geometry. Deleting/recreating the stale pocket through
-> Battenmark produced the correct persisted/exported geometry.
+A focused real-FreeCAD regression on current `main` proves that changing an
+existing pocket from 3 mm to 6 mm through `set_feature_param` correctly updates
+the IR, fresh FreeCAD rebuild, STEP, 3MF and post-restart result. No production
+code change was required.
 
-A successful final result should not erase this regression candidate. It should
-be tracked and fixed separately.
+Therefore public material must **not** call issue #26 a confirmed generic worker
+synchronization defect. The remaining investigation is specific to the Orange Pi
+feature chain: the six-profile vent sketch, `Plug_Hollow`, feature ordering and
+related pocket direction/placement semantics. Recreating the vent pocket at the
+end of the feature history changed more than depth alone.
+
+This is still valuable benchmark evidence: the final enclosure PASS is real, the
+original discrepancy remains documented, and the project distinguishes an
+observed failure from an unproven root-cause claim.
 
 ## Community post strategy
 
@@ -164,10 +173,11 @@ corrected PASS. It demonstrates the difference between:
 
 - client/tool interoperability;
 - CAD execution;
+- feature-history semantics;
 - B-rep warnings and measurement reliability;
 - export fidelity;
 - actual engineering/specification correctness;
-- and recovery from detected platform/modeling failures.
+- and recovery from detected modeling failures.
 
 Target communities after P0 presentation checks close:
 
@@ -201,5 +211,6 @@ export success, **specification fidelity**, measurement source and tester notes.
 - Valid B-rep geometry is not the same as a correct mechanical design.
 - Export fidelity is not the same as specification correctness.
 - Do not hide failed tests; useful failures become benchmark material.
-- Preserve the worker-sync defect as engineering evidence even though the corrected benchmark passes.
+- Do not convert an observed discrepancy into a root-cause claim before reproduction.
+- Preserve issue #26 as an open feature-history investigation until the complex benchmark chain is reproduced.
 - Do not spend on ads before developer/community adoption signals appear.
