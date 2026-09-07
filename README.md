@@ -1,33 +1,110 @@
-# Battenmark
+<p align="center">
+  <img src="media/brand/battenmark-lockup-primary.png" alt="Battenmark" width="720">
+</p>
 
-**Open, backend-neutral CAD infrastructure for AI agents and software.**
+<p align="center"><strong>Open, backend-neutral CAD infrastructure for AI agents and software.</strong></p>
 
 [![CI](https://github.com/halsyourpal422/Battenmark/actions/workflows/ci.yml/badge.svg)](https://github.com/halsyourpal422/Battenmark/actions/workflows/ci.yml)
 ![License](https://img.shields.io/badge/license-Apache--2.0-blue.svg)
 ![schema](https://img.shields.io/badge/schema-2-informational.svg)
 ![MCP](https://img.shields.io/badge/MCP-5.0.0-informational.svg)
 
+<p align="center">
+  <img src="media/github-hero/github-hero.png" alt="Battenmark CAD demo gallery" width="100%">
+</p>
+
 Battenmark provides a typed, backend-neutral interface for creating, editing,
 inspecting, validating and exporting authoritative CAD geometry across
 interchangeable CAD backends. Callers request `create_hole` — never
 `PartDesign::Hole`. No transport owns the model; one canonical service does.
 
+## Verified client evidence
+
+As of **September 7, 2026**, two agent/client paths have published Battenmark
+proof rather than being treated only as compatibility targets.
+
+### ChatGPT Work on macOS — full-fidelity + physical-output proof
+
 ```text
-ChatGPT / Claude / Gemini / Grok / Codex / local models / IDE agents / custom apps
-                                   │
-                    MCP / HTTP / Python / CLI
-                                   │
-                                   ▼
-                         Battenmark Core
-                                   │
-                    typed CAD operations / CAD IR
-                                   │
-                        Backend Registry
-                                   │
-             ┌─────────────────────┼──────────────────────┐
-             ▼                     ▼                      ▼
-          FreeCAD                JSCAD              future adapters
-     authoritative B-rep        preview        build123d/CadQuery/etc.
+ChatGPT Work on macOS
+        │
+        ▼
+    Battenmark
+        │
+        ▼
+FreeCAD 1.1.3 / OpenCascade
+        │
+        ├── FCStd
+        ├── STEP
+        ├── STL
+        └── 3MF
+```
+
+ChatGPT Work has been exercised through Battenmark with real geometry creation,
+parametric rebuilds, worker restart/recovery, export, validation and persistence.
+It also produced a successfully printed **60 × 25 × 4 mm calibration coupon with
+nominal 3 / 4 / 5 mm through-holes**.
+
+The harder corrected **two-piece Orange Pi 4 Pro enclosure** now also passes its
+full benchmark through Battenmark:
+
+- base: **96 × 63 × 22 mm**;
+- lid: **96 × 63 × 6 mm**;
+- hollow friction rim: **90.6 × 57.6 mm outer / 85.8 × 52.8 mm inner / 2.4 mm walls**;
+- six true **2.4 × 55 mm** through-vents;
+- final 3MF: **2 watertight manifold objects**;
+- boundary edges: **0 / 0**;
+- non-manifold mesh edges: **0 / 0**;
+- corrected analytical lid volume: **13,138.56 mm³**;
+- exported lid mesh volume: **13,138.560000 mm³**;
+- combined 3MF mesh volume: **41,281.246683 mm³**;
+- difference from Battenmark export volume: **0.109317 mm³ / 0.000265%**;
+- fresh-process persistence/reopen: **PASS**;
+- direct FreeCAD bypass: **NO**.
+
+**Overall corrected Orange Pi benchmark: PASS.**
+
+### Claude via MCP — end-to-end CAD workflow proof
+
+Claude has also been validated through Battenmark's MCP surface into the same
+authoritative FreeCAD/OpenCascade backend.
+
+A tiny interoperability proof discovered **75 tools**, created a
+**20 × 15 × 5 mm** solid, rebuilt it as **1 valid solid / 1,500 mm³**, and
+cleaned up without direct FreeCAD bypass.
+
+Claude then completed the original **50-revision two-piece Orange Pi 4 Pro
+enclosure workflow** entirely through Battenmark. That first hard result was
+correctly published as PARTIAL because it exposed real lid-rim and vent defects.
+Those defects became the correction benchmark that was subsequently completed to
+PASS in ChatGPT Work.
+
+See [client validation evidence](docs/CLIENT_VALIDATION.md) and the
+[corrected Orange Pi hard benchmark](docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md).
+
+Battenmark is intentionally provider-neutral. Other LLM clients/providers should
+remain compatibility targets until equivalent evidence is published for them.
+Protocol discovery alone is not treated as proof of autonomous CAD quality.
+
+## Architecture
+
+```text
+AI agents / IDE agents / custom software clients
+                    │
+         MCP / HTTP / Python / CLI
+                    │
+                    ▼
+              Battenmark Core
+                    │
+         typed CAD operations / CAD IR
+                    │
+             Backend Registry
+                    │
+      ┌─────────────┼──────────────────┐
+      ▼             ▼                  ▼
+   FreeCAD        JSCAD          future adapters
+ authoritative    preview      build123d/CadQuery/etc.
+   B-rep
 ```
 
 - **FreeCAD / OpenCascade** — authoritative B-rep kernel (headless JSON-lines worker)
@@ -117,6 +194,16 @@ This is pre-1.0 alpha software; APIs may change.
 - Imported STEP is geometry import — not automatic parametric reconstruction
 - Native FCStd documents keep historical PartDesign feature shapes; Battenmark
   measures the final Body Tip (summing historical solids double-counts)
+- Bodies carrying non-manifold-edge warnings can produce **unreliable B-rep volume
+  integrals**; benchmark evidence should cross-check mesh/analytical volume rather
+  than treating a raw OpenCascade volume number as ground truth in that condition
+- The Orange Pi correction exposed an unresolved feature-history discrepancy tracked
+  in [issue #26](https://github.com/halsyourpal422/Battenmark/issues/26). A focused
+  real-FreeCAD regression on current `main` shows ordinary existing-pocket depth
+  edits rebuild, export and survive worker restart correctly. The remaining
+  investigation is specific to the benchmark's multi-profile vent sketch and
+  surrounding feature history; it is **not** currently established as a generic
+  Battenmark worker-synchronization defect.
 - One serialized FreeCAD worker (no pooling)
 - Preview rendering is JSCAD, not OCC hidden-line
 - Complete topological naming is not solved; persistent `gref` mitigates it
@@ -130,10 +217,12 @@ Full list: [docs/LIMITATIONS.md](docs/LIMITATIONS.md).
 | Architecture & foundation | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) · [docs/FOUNDATION.md](docs/FOUNDATION.md) |
 | Operation contract & schema | [docs/CONTRACT.md](docs/CONTRACT.md) · [docs/VERSIONING.md](docs/VERSIONING.md) |
 | Backends & kernels | [docs/BACKENDS.md](docs/BACKENDS.md) · [docs/FREECAD.md](docs/FREECAD.md) · [docs/JSCAD.md](docs/JSCAD.md) · [docs/KERNEL.md](docs/KERNEL.md) |
-| Transports | [docs/MCP.md](docs/MCP.md) · [docs/HTTP.md](docs/HTTP.md) · [docs/CLI.md](docs/CLI.md) · [docs/PYTHON.md](docs/PYTHON.md) · [docs/CLIENTS.md](docs/CLIENTS.md) |
+| Transports / clients | [docs/MCP.md](docs/MCP.md) · [docs/HTTP.md](docs/HTTP.md) · [docs/CLI.md](docs/CLI.md) · [docs/PYTHON.md](docs/PYTHON.md) · [docs/CLIENTS.md](docs/CLIENTS.md) · [docs/CLIENT_VALIDATION.md](docs/CLIENT_VALIDATION.md) |
 | Service & persistence | [docs/SERVICE.md](docs/SERVICE.md) · [docs/AUTH.md](docs/AUTH.md) |
 | Import / export & preview | [docs/IMPORT.md](docs/IMPORT.md) · [docs/PREVIEW.md](docs/PREVIEW.md) |
 | Platforms & validation | [docs/MACOS.md](docs/MACOS.md) · [docs/LINUX.md](docs/LINUX.md) · [docs/RELEASE.md](docs/RELEASE.md) |
+| Hard benchmark | [docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md](docs/demos/orange-pi-4-pro-two-piece-2026-09-06.md) |
+| Public promotion / adoption | [docs/PROMOTION_PLAN.md](docs/PROMOTION_PLAN.md) |
 
 ## Compatibility identifiers
 
@@ -182,10 +271,14 @@ Each demo summary page contains: purpose, prompt summary, result, validation, ex
 
 | Asset | Description |
 |-------|-------------|
-| [GitHub Hero](media/github-hero/github-hero.png) | 1280×640 collage of all demo previews |
-| [Social Preview](media/social-preview/social-preview.png) | 1280×640 with branding + SHA |
+| [Primary Battenmark mark](media/brand/battenmark-mark-primary.png) | Approved standalone dark-on-light geometric B mark |
+| [Reversed Battenmark mark](media/brand/battenmark-mark-reversed.png) | Approved light/reversed standalone mark for dark surfaces |
+| [Primary Battenmark lockup](media/brand/battenmark-lockup-primary.png) | Approved horizontal mark + wordmark used at the top of this README |
+| [GitHub Hero](media/github-hero/github-hero.png) | 1280×640 collage of canonical demo previews |
+| [Social Preview](media/social-preview/social-preview.png) | 1280×640 social-card asset |
 | [Architecture Diagram](media/architecture/architecture.mmd) | Mermaid flowchart of Battenmark core/transports/backends |
-| [Demo Video Script](media/demo-video-script.md) | 45–60s shot list + production notes |
+| [Demo Video Script](media/demo-video-script.md) | Flagship public-demo shot list + production notes |
+| [Brand Asset Guide](media/brand/README.md) | Canonical usage rules for the approved Battenmark artwork |
 
 ### Key Technical Findings (Preserved)
 
