@@ -20,7 +20,7 @@ This page records the current evidence level for agent/client integrations.
 
 | Client / framework | Evidence | Result | Important qualifier |
 | --- | --- | --- | --- |
-| **ChatGPT Work on macOS** | Full-fidelity hard benchmark + physical-output proof | **PASS** | Proven through Battenmark to FreeCAD 1.1.3/OpenCascade with real geometry, rebuild, correction, FCStd/STEP/STL/3MF export, persistence/reopen, independent 3MF audit, and an earlier physically printed calibration coupon. |
+| **ChatGPT Work on macOS** | Full-fidelity hard benchmark + physical-output proof + vision-assisted iterative correction | **PASS** | Proven through Battenmark to FreeCAD 1.1.3/OpenCascade with real geometry, rebuild, correction, FCStd/STEP/STL/3MF export, persistence/reopen, independent 3MF audit, an earlier physically printed calibration coupon, and a later render-inspect-correct loop on a persisted organic-form project. |
 | **Claude via MCP stdio** | End-to-end CAD workflow + interoperability proof | **PASS** | Tiny proof: 75-tool discovery, `kernel_status`, 20×15×5 mm solid, valid OCC rebuild, 1 solid, 1,500 mm³, cleanup, no direct FreeCAD bypass. Claude also completed the original 50-revision two-piece Orange Pi workflow through Battenmark only. The final corrected enclosure was subsequently audited to full PASS in ChatGPT Work. |
 | **OpenCode + local LLM** | End-to-end CAD workflow + downstream slicer ingestion | **PASS** | Two independent artifacts now validate the path. A simple Xbox cradle sliced successfully; a harder dog-shaped holder also rebuilt/exported/sliced successfully but achieved only PARTIAL organic/aesthetic fidelity. This distinguishes Battenmark execution capability from the driving model's visual-design capability. |
 | **Hermes 0.20.5 stock MCP client** | Protocol/client proof | **PASS** | Stock client discovered 75/75 tools and completed two clean 13/13 assembly/control runs with export and structured-error recovery. This is protocol/client interoperability evidence, not a claim of autonomous model-quality parity. |
@@ -159,6 +159,46 @@ Final exported 3MF evidence:
 
 Overall corrected hard benchmark: **PASS**.
 
+### Vision-assisted correction of the persisted dog holder
+
+ChatGPT Work then reopened the same `dog-xbox-controller-holder` project created
+through the OpenCode/local-model path and used rendered visual feedback to
+iteratively improve its form without rebuilding the project from scratch.
+
+The correction loop produced three design checkpoints (`rev_k28of6`,
+`rev_j32je7`, `rev_nf1ym9`), a labeled verified checkpoint `rev_t6xro2`, and
+final persisted revision `rev_tlcbkg`. A fresh Battenmark process reopened
+`doc_qrnre7` and reproduced the final authoritative geometry exactly.
+
+Final OCC result:
+
+- rebuild: **PASS**;
+- shape: `Solid`;
+- valid solids: **exactly 1**;
+- volume: **748,166.214 mm³**;
+- bbox: **(0, -14, 0) → (190, 182, 92) mm**;
+- envelope: **190 × 196 × 92 mm**;
+- flat printable bottom: **Z = 0**;
+- STL export: **2,019,584 bytes / 40,390 triangles**;
+- 3MF export: **458,728 bytes / 20,631 vertices / 40,390 triangles**;
+- 3MF integrity: **PASS**;
+- fresh-process persistence/reopen: **PASS**;
+- direct FreeCAD bypass: **NO**.
+
+The workflow also exercised recovery. Some accumulated stylizing unions caused
+empty authoritative rebuilds, so ChatGPT Work tested them independently, kept
+seven OCC-safe rounded unions, rolled back nine rejected unions, and preserved
+the final grip, cavity, cable, facial-relief and base-trim cuts.
+
+ChatGPT Work reported that the revised form read more clearly as a dog after the
+render-inspect-correct loop. That visual assessment is useful evidence for
+multimodal iterative CAD, but the repo does not treat it as a quantified
+objective aesthetic score.
+
+See:
+
+- [`docs/demos/gpt-work-vision-dog-correction-2026-09-07.md`](demos/gpt-work-vision-dog-correction-2026-09-07.md)
+
 ## Cross-client evidence interpretation
 
 The current evidence now spans several distinct client paths and levels:
@@ -174,11 +214,15 @@ The current evidence now spans several distinct client paths and levels:
 5. A second local-model stress test preserved valid CAD execution while exposing
    a lower ceiling in organic/aesthetic design quality, separating model
    intelligence from Battenmark execution quality.
-6. Hermes separately provides stock-client protocol interoperability evidence.
+6. ChatGPT Work then reopened that same organic project and used visual feedback
+   to perform iterative corrections while preserving authoritative validity,
+   export integrity and fresh-process persistence.
+7. Hermes separately provides stock-client protocol interoperability evidence.
 
 Together these results support Battenmark as a persistent, client-neutral CAD
 execution layer rather than a private CAD session coupled to one hosted model.
-They still do not imply equal reasoning quality across clients or models.
+They also show why client/model reasoning and multimodal feedback should be
+reported separately from CAD-kernel execution quality.
 
 ## Claim discipline
 
@@ -188,12 +232,14 @@ Use the narrowest accurate statement:
 - **Do say:** “ChatGPT Work completed the corrected Orange Pi enclosure as a full-fidelity Battenmark benchmark and also has physical-print proof on macOS.”
 - **Do say:** “OpenCode with the tested local-LLM setup created validated FreeCAD/OpenCascade CAD through Battenmark and produced artifacts that ELEGOO Slicer successfully sliced.”
 - **Do say:** “The local-model dog-holder stress test passed CAD execution while showing weaker organic visual/form reasoning.”
+- **Do say:** “ChatGPT Work reopened the same persisted dog-holder project, used render feedback to iteratively correct it, and finished with one valid persisted OCC solid plus verified STL/3MF exports.”
 - **Do say:** “Hermes has stock-client MCP interoperability evidence.”
 - **Do not say:** “Every LLM/agent works with Battenmark.”
 - **Do not say:** “All local LLMs are validated with Battenmark.”
 - **Do not equate:** protocol discovery with autonomous CAD quality.
 - **Do not equate:** slicer ingestion with physical fit or product-quality ergonomics.
 - **Do not equate:** valid B-rep geometry with strong visual/aesthetic design.
+- **Do not equate:** a model's visual self-assessment with an objective aesthetic score.
 - **Do not equate:** valid B-rep geometry with specification-correct engineering design.
 - **Do not hide:** detected worker-sync or modeling failures merely because a final recovery succeeds.
 
