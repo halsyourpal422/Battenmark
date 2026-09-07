@@ -22,7 +22,7 @@ This page records the current evidence level for agent/client integrations.
 | --- | --- | --- | --- |
 | **ChatGPT Work on macOS** | Full-fidelity hard benchmark + physical-output proof + vision-assisted iterative correction | **PASS** | Proven through Battenmark to FreeCAD 1.1.3/OpenCascade with real geometry, rebuild, correction, FCStd/STEP/STL/3MF export, persistence/reopen, independent 3MF audit, an earlier physically printed calibration coupon, and a later render-inspect-correct loop on a persisted organic-form project. |
 | **Claude via MCP stdio** | End-to-end CAD workflow + interoperability proof | **PASS** | Tiny proof: 75-tool discovery, `kernel_status`, 20×15×5 mm solid, valid OCC rebuild, 1 solid, 1,500 mm³, cleanup, no direct FreeCAD bypass. Claude also completed the original 50-revision two-piece Orange Pi workflow through Battenmark only. The final corrected enclosure was subsequently audited to full PASS in ChatGPT Work. |
-| **OpenCode + local LLM** | End-to-end CAD workflow + downstream slicer ingestion | **PASS** | Two independent artifacts now validate the path. A simple Xbox cradle sliced successfully; a harder dog-shaped holder also rebuilt/exported/sliced successfully but achieved only PARTIAL organic/aesthetic fidelity. This distinguishes Battenmark execution capability from the driving model's visual-design capability. |
+| **OpenCode + local LLM** | End-to-end CAD workflow + slicer ingestion + cross-client persisted-project round trip | **PASS** | Created two independent artifacts through Battenmark, including the dog-holder stress test; after ChatGPT Work visually corrected that same persisted project, the local model reopened it, identified the operative final cutters in an 83-feature history, made exact numeric edits, exported STL/3MF/STEP, and reproduced the final OCC result after repeated worker restarts. Organic/aesthetic quality of the original local dog design remained only PARTIAL. |
 | **Hermes 0.20.5 stock MCP client** | Protocol/client proof | **PASS** | Stock client discovered 75/75 tools and completed two clean 13/13 assembly/control runs with export and structured-error recovery. This is protocol/client interoperability evidence, not a claim of autonomous model-quality parity. |
 | **Agent Zero** | Source-level assessment only | **UNVALIDATED as direct Battenmark client** | No direct MCP client was available in the assessed version; no bridge was added merely to manufacture a compatibility claim. |
 | Other agents / IDEs / custom clients | Architecture target | **Not yet published as validated** | Treat as compatibility targets until equivalent evidence exists. |
@@ -199,6 +199,46 @@ See:
 
 - [`docs/demos/gpt-work-vision-dog-correction-2026-09-07.md`](demos/gpt-work-vision-dog-correction-2026-09-07.md)
 
+## Cross-client round trip back to OpenCode + local LLM
+
+The local model then reopened that same ChatGPT Work-edited persisted project
+and completed a precise engineering revision rather than an aesthetic redesign.
+
+The final document was `doc_qrnre7` at revision `rev_85czot` with **83 features**.
+The local model discovered that the project contained legacy, `Recut2`, and later
+`Final` cutter generations. It correctly determined that the later `Final`
+cutters controlled exported geometry and edited those operative features rather
+than stopping after modifying stale history.
+
+Final requested changes:
+
+- both grip wells: **Ø50 → Ø54 mm**, centers preserved;
+- USB tunnel: **Ø18 → Ø22 mm**, centerline preserved;
+- new strain-relief recess: **22 × 30 × 4 mm**;
+- body margin adjusted to preserve material around the larger wells.
+
+Final authoritative result:
+
+- rebuild: **PASS**;
+- valid solids: **exactly 1**;
+- volume: **730,934.359 mm³**;
+- bbox: **(0, -14, 0) → (190, 182, 92) mm**;
+- issues: `[]`;
+- STL: **1,972,384 bytes / 39,446 triangles**;
+- 3MF: **443,038 bytes**, valid archive;
+- STEP: **300,169 bytes**, valid STEP header;
+- three worker-restart persistence checks: **PASS**;
+- direct FreeCAD bypass: **NO**.
+
+The run also preserved two important failure observations: transient empty
+exports immediately after booleans until the document was rebuilt into a settled
+state, and a separate generic non-manifold CSG warning that did not appear in the
+authoritative OCC rebuild result.
+
+See:
+
+- [`docs/demos/opencode-local-llm-cross-client-roundtrip-2026-09-07.md`](demos/opencode-local-llm-cross-client-roundtrip-2026-09-07.md)
+
 ## Cross-client evidence interpretation
 
 The current evidence now spans several distinct client paths and levels:
@@ -217,12 +257,16 @@ The current evidence now spans several distinct client paths and levels:
 6. ChatGPT Work then reopened that same organic project and used visual feedback
    to perform iterative corrections while preserving authoritative validity,
    export integrity and fresh-process persistence.
-7. Hermes separately provides stock-client protocol interoperability evidence.
+7. The local model then reopened the ChatGPT Work-edited project again, found the
+   operative final cutters in an 83-feature history, made exact numeric edits,
+   exported STL/3MF/STEP and reproduced the final OCC state across repeated
+   worker restarts.
+8. Hermes separately provides stock-client protocol interoperability evidence.
 
 Together these results support Battenmark as a persistent, client-neutral CAD
 execution layer rather than a private CAD session coupled to one hosted model.
-They also show why client/model reasoning and multimodal feedback should be
-reported separately from CAD-kernel execution quality.
+They also show why client/model reasoning, multimodal feedback and CAD-kernel
+execution quality should be reported separately.
 
 ## Claim discipline
 
@@ -233,6 +277,7 @@ Use the narrowest accurate statement:
 - **Do say:** “OpenCode with the tested local-LLM setup created validated FreeCAD/OpenCascade CAD through Battenmark and produced artifacts that ELEGOO Slicer successfully sliced.”
 - **Do say:** “The local-model dog-holder stress test passed CAD execution while showing weaker organic visual/form reasoning.”
 - **Do say:** “ChatGPT Work reopened the same persisted dog-holder project, used render feedback to iteratively correct it, and finished with one valid persisted OCC solid plus verified STL/3MF exports.”
+- **Do say:** “The tested local model subsequently reopened that ChatGPT Work-edited project, identified the operative final feature chain, made exact numeric edits, exported STL/3MF/STEP and preserved the result across multiple worker restarts.”
 - **Do say:** “Hermes has stock-client MCP interoperability evidence.”
 - **Do not say:** “Every LLM/agent works with Battenmark.”
 - **Do not say:** “All local LLMs are validated with Battenmark.”
